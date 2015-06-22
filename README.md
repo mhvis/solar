@@ -1,7 +1,7 @@
 # solriv
 PVOutput.org uploader for Samil Power SolarRiver 4000TL-D solar inverter, designed to be run on a Rasperry Pi. It's a Python script that calls `curl`, so should work on a number of systems.
 
-Note: I've only tested this on my one-inverter system. It probably won't work properly if there are two or more inverters on the same network.
+Note: I've only tested this on my one-inverter system. It probably won't work properly if there are two or more inverters on the same network, and may not working correctly if your system has more than one network interface.
 
 Usage:
 
