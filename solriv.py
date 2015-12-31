@@ -149,4 +149,8 @@ while True:
             else:
                 time.sleep(1)
     except socket.error as e:
-        DebugMessage("Socket error: " + e.strerror)
+        print(e)
+        if (e.strerror is None):
+                DebugMessage("Socket error")
+        else:
+                DebugMessage("Socket error: " + e.strerror)
