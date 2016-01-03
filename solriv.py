@@ -4,6 +4,7 @@
 # PVOutput uploader for Samil Power Solar River4000TL-D
 # May work with other inverters
 
+import sys
 import socket
 import struct
 import time
@@ -17,11 +18,13 @@ systemId = "enter your system id here"
 def DebugMessage(message):
     syslog.syslog("solriv: " + message)
 
-def BroadcastMessage():
+def BroadcastMessage(interfaceip):
     DebugMessage("Sending broadcast")
     UDPPORT = 1300
     MESSAGE = "\x55\xaa\x00\x40\x02\x00\x0bI AM SERVER\x04\x3a"
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
++    if(interfaceip != ""):
++        s.bind((interfaceip, 0))
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     s.connect(("<broadcast>", UDPPORT))
     s.send(MESSAGE)
@@ -123,13 +126,17 @@ def SendData(data, starttime):
 
     subprocess.call(curlargs)
 
++interfaceip=""
++if(len(sys.argv) == 2):
++    interfaceip=sys.argv[1]
++
 listensocket = SetUpConnection(20.0)
 runningdata = ()
 starttime = datetime.datetime.now()
 while True:
     s = None
     while(s == None):
-        BroadcastMessage()
+        BroadcastMessage(interfaceip)
         s = WaitForConnection(listensocket)
         time.sleep(1)
     
