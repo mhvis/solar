@@ -23,8 +23,8 @@ def BroadcastMessage(interfaceip):
     UDPPORT = 1300
     MESSAGE = "\x55\xaa\x00\x40\x02\x00\x0bI AM SERVER\x04\x3a"
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-+    if(interfaceip != ""):
-+        s.bind((interfaceip, 0))
+    if(interfaceip != ""):
+        s.bind((interfaceip, 0))
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     s.connect(("<broadcast>", UDPPORT))
     s.send(MESSAGE)
@@ -126,10 +126,10 @@ def SendData(data, starttime):
 
     subprocess.call(curlargs)
 
-+interfaceip=""
-+if(len(sys.argv) == 2):
-+    interfaceip=sys.argv[1]
-+
+interfaceip=""
+if(len(sys.argv) == 2):
+    interfaceip=sys.argv[1]
+
 listensocket = SetUpConnection(20.0)
 runningdata = ()
 starttime = datetime.datetime.now()
