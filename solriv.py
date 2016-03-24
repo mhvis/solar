@@ -12,6 +12,7 @@ import datetime
 import subprocess
 import syslog
 
+# Get these from PVOutput.org
 apiKey = "insert your api key here"
 systemId = "enter your system id here"
 
@@ -60,6 +61,7 @@ def ReceiveData(s):
         s.settimeout(5.0)
         data = s.recv(1024)
     except socket.timeout:
+        #DebugMessage("None received")
         data = ""
     if (len(data) < 63 or data[0:4] != "\x55\xaa\x01\x82"):
         if (len(data) > 0):
@@ -67,6 +69,7 @@ def ReceiveData(s):
             DebugMessage("Received: " + ' '.join(x.encode('hex') for x in data))
         return None
     else:
+        #DebugMessage("Data received")
         dataentries = data[7:]
         try:
             entries = struct.unpack_from('!hhhhhhhhhhhhhhhhhhhhhhhhhhhh', dataentries)
@@ -139,12 +142,14 @@ while True:
         BroadcastMessage(interfaceip)
         s = WaitForConnection(listensocket)
         time.sleep(1)
-    
+
     try:
+        lastdatatime = datetime.datetime.now()
         while(True):
             RequestData(s)
             newdata = ReceiveData(s)
             if (newdata != None):
+                lastdatatime = datetime.datetime.now()
                 runningdata += (newdata,)
                 if ((runningdata[-1][0] - starttime).seconds > 5 * 60):
                     if (runningdata[0][2] > 0 or runningdata[-1][2] > 0):
@@ -154,6 +159,10 @@ while True:
                     starttime = datetime.datetime.now()
                 time.sleep(10)
             else:
+                #DebugMessage("Data last received: " + str(lastdatatime))
+                if ((datetime.datetime.now() - lastdatatime).seconds > 10 * 60):
+                    DebugMessage("No data received for 10 minutes; reconnecting.")
+                    break
                 time.sleep(1)
     except socket.error as e:
         print(e)
