@@ -1,43 +1,34 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-# solriv.py
-# PVOutput uploader for Samil Power Solar River4000TL-D
-# May work with other inverters
+# solar.py
+#
+# CLI monitoring tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
+# series.
 
-import sys
 import socket
-import struct
-import time
-import datetime
-import subprocess
-import syslog
 
-# Get these from PVOutput.org
-apiKey = "insert your api key here"
-systemId = "enter your system id here"
+import logging
+import argparse
 
-def DebugMessage(message):
-    syslog.syslog("solriv: " + message)
-
-def BroadcastMessage(interfaceip):
-    DebugMessage("Sending broadcast")
-    UDPPORT = 1300
-    MESSAGE = "\x55\xaa\x00\x40\x02\x00\x0bI AM SERVER\x04\x3a"
+def send_discovery():
+    '''Sends a discovery message to the broadcast address.'''
+    logging.debug('Broadcasting discovery message')
+    # Socket creation
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    if(interfaceip != ""):
-        s.bind((interfaceip, 0))
+    s.bind(('', 0))
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.connect(("<broadcast>", UDPPORT))
-    s.send(MESSAGE)
+    # Send broadcast
+    s.sendto('\x55\xaa\x00\x40\x02\x00\x0bI AM SERVER\x04\x3a', ('<broadcast>', 1300))
+    # Close socket
     s.close()
 
-def SetUpConnection(waittime):
-    DebugMessage("Setting up connection")
-    TCPPORT = 1200
+def setup_connection(waittime):
+    '''TODO'''
+    logging.debug('Setting up connection')
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('', TCPPORT))
+    s.bind(('', 1200))
     s.settimeout(waittime)
-    s.listen(1)
+    s.listen()
     return s
 
 def WaitForConnection(s):
@@ -129,44 +120,49 @@ def SendData(data, starttime):
 
     subprocess.call(curlargs)
 
-interfaceip=""
-if(len(sys.argv) == 2):
-    interfaceip=sys.argv[1]
+def daemon():
+    interfaceip=""
+    if(len(sys.argv) == 2):
+        interfaceip=sys.argv[1]
 
-listensocket = SetUpConnection(20.0)
-runningdata = ()
-starttime = datetime.datetime.now()
-while True:
-    s = None
-    while(s == None):
-        BroadcastMessage(interfaceip)
-        s = WaitForConnection(listensocket)
-        time.sleep(1)
+    listensocket = SetUpConnection(20.0)
+    runningdata = ()
+    starttime = datetime.datetime.now()
+    while True:
+        s = None
+        while(s == None):
+            BroadcastMessage(interfaceip)
+            s = WaitForConnection(listensocket)
+            time.sleep(1)
 
-    try:
-        lastdatatime = datetime.datetime.now()
-        while(True):
-            RequestData(s)
-            newdata = ReceiveData(s)
-            if (newdata != None):
-                lastdatatime = datetime.datetime.now()
-                runningdata += (newdata,)
-                if ((runningdata[-1][0] - starttime).seconds > 5 * 60):
-                    if (runningdata[0][2] > 0 or runningdata[-1][2] > 0):
-                        # Power has been generated, so upload.
-                        SendData(runningdata, starttime)
-                    runningdata = ()
-                    starttime = datetime.datetime.now()
-                time.sleep(10)
+        try:
+            lastdatatime = datetime.datetime.now()
+            while(True):
+                RequestData(s)
+                newdata = ReceiveData(s)
+                if (newdata != None):
+                    lastdatatime = datetime.datetime.now()
+                    runningdata += (newdata,)
+                    if ((runningdata[-1][0] - starttime).seconds > 5 * 60):
+                        if (runningdata[0][2] > 0 or runningdata[-1][2] > 0):
+                            # Power has been generated, so upload.
+                            SendData(runningdata, starttime)
+                        runningdata = ()
+                        starttime = datetime.datetime.now()
+                    time.sleep(10)
+                else:
+                    #DebugMessage("Data last received: " + str(lastdatatime))
+                    if ((datetime.datetime.now() - lastdatatime).seconds > 10 * 60):
+                        DebugMessage("No data received for 10 minutes; reconnecting.")
+                        break
+                    time.sleep(1)
+        except socket.error as e:
+            print(e)
+            if (e.strerror is None):
+                    DebugMessage("Socket error")
             else:
-                #DebugMessage("Data last received: " + str(lastdatatime))
-                if ((datetime.datetime.now() - lastdatatime).seconds > 10 * 60):
-                    DebugMessage("No data received for 10 minutes; reconnecting.")
-                    break
-                time.sleep(1)
-    except socket.error as e:
-        print(e)
-        if (e.strerror is None):
-                DebugMessage("Socket error")
-        else:
-                DebugMessage("Socket error: " + e.strerror)
+                    DebugMessage("Socket error: " + e.strerror)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Monitoring tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
+
