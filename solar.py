@@ -1,17 +1,24 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.5
 
 # solar.py
 #
 # CLI monitoring tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
 # series.
 
+# (Needs at least Python 3.2 for 'int.to_bytes()')
+
 import socket
 
 import logging
 import argparse
 
+# Request identifiers
+_MODEL_REQUEST = '\x1\x3\x2', '\x1\x5'
+_CURRENT_VALUES_REQUEST = '\x1\x2\x2', '\x1\x4'
+_HISTORY_REQUEST = '\x6\x1\x2', '\x1\x2a'
+
 def send_discovery():
-    '''Sends a discovery message to the broadcast address.'''
+    """Sends a discovery message to the broadcast address."""
     logging.debug('Broadcasting discovery message')
     # Socket creation
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -23,7 +30,7 @@ def send_discovery():
     s.close()
 
 def setup_connection(waittime):
-    '''TODO'''
+    """TODO"""
     logging.debug('Setting up connection')
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('', 1200))
@@ -63,6 +70,7 @@ def ReceiveData(s):
         #DebugMessage("Data received")
         dataentries = data[7:]
         try:
+            # Send data here
             entries = struct.unpack_from('!hhhhhhhhhhhhhhhhhhhhhhhhhhhh', dataentries)
             internaltemp = entries[0] / 10.0
             pv1voltage = entries[1] / 10.0
@@ -162,6 +170,21 @@ def daemon():
                     DebugMessage("Socket error")
             else:
                     DebugMessage("Socket error: " + e.strerror)
+
+# Set-up server
+logging.debug('Setting up connection')
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    s.bind(('', 1200))
+    s.listen()
+    conn, addr = s.accept()
+
+def _send_message(identifier, payload):
+    start, end = identifier
+    payload_size = len(payload).to_bytes(2, byteorder='big')
+    message = '\x55\xaa' + start + payload_size + payload + end
+    # Send here
+    # Todo
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Monitoring tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
