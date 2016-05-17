@@ -46,9 +46,9 @@ def upload():
     pv.add_status(data)
     next_timestamp = next_boundary(time.time(), boundary)
     logging.debug('Scheduling next upload for %s', next_timestamp)
-    s.enterabs(next_timestamp, 1, upload)
+    s.enterabs(next_timestamp, 1, upload, ())
 
 next_timestamp = next_boundary(time.time(), boundary)
 logging.debug('Scheduling first upload for %s', next_timestamp)
-s.enterabs(next_timestamp, 1, upload)
+s.enterabs(next_timestamp, 1, upload, ())
 s.run()
