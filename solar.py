@@ -46,6 +46,7 @@ class Inverter:
         self.lock = threading.Lock()
         # Start keep-alive sequence
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
+        self.keep_alive.daemon = True
         self.keep_alive.start()
 
     def request_model_info(self):
@@ -126,6 +127,7 @@ class Inverter:
         logging.debug('Received: %s', response)
         # Set keep-alive timer
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
+        self.keep_alive.daemon = True
         self.keep_alive.start()
         # Release lock
         self.lock.release()
