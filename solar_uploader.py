@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5
+#!/usr/bin/env python3
 
 # solar_uploader.py
 #
@@ -33,17 +33,18 @@ s = sched.scheduler(time.time, time.sleep)
 
 def upload():
     global s
-    logging.debug('Going to upload now')
     values = inverter.request_values()
-    data = {
-        'd': time.strftime('%Y%m%d'),
-        't': time.strftime('%H:%M'),
-        'v1': round(values['energy_today'] * 1000),
-        'v2': values['output_power'],
-        'v5': values['internal_temp'],
-        'v6': values['grid_voltage']
-    }
-    pv.add_status(data)
+    if values['output_power'] > 0:
+        logging.debug('Going to upload now')
+        data = {
+            'd': time.strftime('%Y%m%d'),
+            't': time.strftime('%H:%M'),
+            'v1': round(values['energy_today'] * 1000),
+            'v2': values['output_power'],
+            'v5': values['internal_temp'],
+            'v6': values['grid_voltage']
+        }
+        pv.add_status(data)
     next_timestamp = next_boundary(time.time(), boundary)
     logging.debug('Scheduling next upload for %s', next_timestamp)
     s.enterabs(next_timestamp, 1, upload, ())

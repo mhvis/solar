@@ -1,11 +1,11 @@
-#!/usr/bin/env python3.5
+#!/usr/bin/env python3
 
 # solar.py
 #
 # Library and CLI tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
 # series.
 #
-# (Requires Python 3.5)
+# (Requires Python 3)
 
 import socket
 import threading
