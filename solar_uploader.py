@@ -9,3 +9,7 @@
 import sched
 import solar
 import pvoutput
+import logging
+
+logging.basicConfig(level=logging.INFO)
+

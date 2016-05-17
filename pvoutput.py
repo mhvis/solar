@@ -2,7 +2,7 @@
 
 # pvoutput.py
 #
-# CLI for PVOutput.
+# Library for making requests to PVOutput.
 
 import urllib.request
 import logging
