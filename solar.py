@@ -160,7 +160,7 @@ def _connect():
         _server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         _server.bind(('', 1200))
         _server.settimeout(5.0) # Timeout defines the time between broadcasts
-        _server.listen()
+        _server.listen(5)
     # Broadcast packet identifier (header, end)
     identifier = b'\x00\x40\x02', b'\x04\x3a'
     payload = b'I AM SERVER'
