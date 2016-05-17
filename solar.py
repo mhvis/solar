@@ -85,6 +85,7 @@ class Inverter:
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
+        logging.info('Values: %s', result)
         return result
 
     def request_history(self, start, end):
@@ -116,7 +117,6 @@ class Inverter:
         self.lock.acquire()
         # Cancel a (possibly) running keep-alive timer
         self.keep_alive.cancel()
-        logging.debug('Sending request: %s, %s', identifier, payload)
         request = _construct_request(identifier, payload)
         self.sock.send(request)
         data = self.sock.recv(1024)
@@ -124,7 +124,6 @@ class Inverter:
             self.sock = None
             raise ConnectionClosedException('Connection closed')
         response = _tear_down_response(data)
-        logging.debug('Received: %s', response)
         # Set keep-alive timer
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
         self.keep_alive.daemon = True
@@ -135,6 +134,7 @@ class Inverter:
     
     def __keep_alive(self):
         """Makes a keep-alive request."""
+        logging.debug('Keep alive')
         identifier = b'\x01\x09\x02', b'\x01\x0b'
         self.__make_request(identifier, b'')
 
