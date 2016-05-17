@@ -17,6 +17,11 @@ logging.basicConfig(level=logging.DEBUG)
 # The boundary on which to upload data in seconds (5 * 60 means every 5 minutes)
 boundary = 5 * 60
 
+def next_boundary(timestamp, boundary):
+    """Returns a timestamp which is after the given time and on the given
+    boundary."""
+    return timestamp + boundary - timestamp % boundary
+
 config = configparser.ConfigParser()
 config.read('solar_uploader.ini')
 api_key = config['System']['ApiKey']
@@ -25,7 +30,9 @@ pv = pvoutput.System(api_key, system_id)
 inverter = solar.Inverter()
 
 s = sched.scheduler(time.time, time.sleep)
+
 def upload():
+    global s
     logging.debug('Going to upload now')
     values = inverter.request_values()
     data = {
@@ -39,14 +46,9 @@ def upload():
     pv.add_status(data)
     next_timestamp = next_boundary(time.time(), boundary)
     logging.debug('Scheduling next upload for %s', next_timestamp)
-    sc.enterabs(next_timestamp, 1, upload)
+    s.enterabs(next_timestamp, 1, upload)
 
 next_timestamp = next_boundary(time.time(), boundary)
 logging.debug('Scheduling first upload for %s', next_timestamp)
 s.enterabs(next_timestamp, 1, upload)
 s.run()
-
-def next_boundary(timestamp, boundary):
-    """Returns a timestamp which is after the given time and on the given
-    boundary."""
-    return timestamp + boundary - timestamp % boundary
