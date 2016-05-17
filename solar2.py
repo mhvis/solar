@@ -12,8 +12,8 @@ import threading
 import logging
 import argparse
 
-logging.basicConfig(level=logging.DEBUG)
-#logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # Maximum time between packets (seconds float). If this time is reached a
 # keep-alive packet is sent.
@@ -46,25 +46,50 @@ class Inverter:
         self.lock = threading.Lock()
         # Start keep-alive sequence
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
+        self.keep_alive.start()
 
     def request_model_info(self):
         """Requests model information like the type, software version, and
         inverter 'name'."""
-        identifier = b'\x01\x03\x02', b'\x01\x05'
-        response = self.__make_request(identifier, b'')
+        #identifier = b'\x01\x03\x02', b'\x01\x05'
+        #response = self.__make_request(identifier, b'')
         # TODO: format a nice return value
-        return response
+        raise NotImplementedError('Not yet implemented')
+        #return response
 
     def request_values(self):
-        """Requests current values which are returned as a dictionary(?)."""
+        """Requests current values which are returned as a dictionary."""
         identifier = b'\x01\x02\x02', b'\x01\x04'
-        response = self.__make_request(identifier, b'')
-        # TODO: format a nice return value
-        return response
+        # Make request and receive response
+        header, payload, end = self.__make_request(identifier, b'')
+        # Separate each value
+        values = zip(payload[0::2], payload[1::2])
+        # Turn each value into an integer
+        ints = [int.from_bytes(x, byteorder='big') for x in values]
+        # Cook result
+        result = {
+            'internal_temp': ints[0] / 10.0, # degrees C
+            'pv1_voltage': ints[1] / 10.0, # V
+            'pv2_voltage': ints[2] / 10.0, # V
+            'pv1_current': ints[3] / 10.0, # A
+            'pv2_current': ints[4] / 10.0, # A
+            'total_operation_hours': ints[6], # h
+            'energy_today': ints[8] / 100.0, # kWh
+            'pv1_input_power': ints[19], # W
+            'pv2_input_power': ints[20], # W
+            'grid_current': ints[21] / 10.0, # A
+            'grid_voltage': ints[22] / 10.0, # V
+            'grid_frequency': ints[23] / 100.0, # Hz
+            'output_power': ints[24], # W
+            #'energy_total': ints[26] * 100.0, # kWh
+        }
+        # For more info on the data format:
+        # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
+        return result
 
     def request_history(self, start, end):
         """Not yet implemented."""
-        pass
+        raise NotImplementedError('Not yet implemented')
         #identifier = b'\x06\x01\x02', b'\x01\x2a'
         #return self.__make_request(identifier, b'')
     
@@ -85,25 +110,21 @@ class Inverter:
     
     def __make_request(self, identifier, payload):
         """Directly makes a request and returns the response."""
-        # Stop if socket is closed
         if self.sock is None:
             raise ConnectionClosedException('Connection was already closed')
         # Acquire socket request lock
         self.lock.acquire()
         # Cancel a (possibly) running keep-alive timer
         self.keep_alive.cancel()
+        logging.debug('Sending request: %s, %s', identifier, payload)
         request = _construct_request(identifier, payload)
-        logging.debug('Making request: %s', request)
         self.sock.send(request)
         data = self.sock.recv(1024)
-        logging.debug('Received response: %s', data)
         if len(data) == 0:
             self.sock = None
             raise ConnectionClosedException('Connection closed')
         response = _tear_down_response(data)
-        logging.info('Response header: %s', response[0])
-        logging.info('Response payload: %s', response[1])
-        logging.info('Response end: %s', response[2])
+        logging.debug('Received: %s', response)
         # Set keep-alive timer
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
         self.keep_alive.start()
