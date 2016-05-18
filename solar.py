@@ -3,9 +3,12 @@
 # solar.py
 #
 # Library and CLI tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
-# series.
+# series (Samil Power inverters).
 #
 # (Requires Python 3)
+#
+# To-do:
+# - close socket on interrupt
 
 import socket
 import threading
@@ -39,9 +42,9 @@ class Inverter:
     
     (The request methods are thread-safe.)"""
     
-    def __init__(self):
+    def __init__(self, interface_ip=''):
         # Connect
-        self.sock, self.addr = _connect()
+        self.sock, self.addr = _connect(interface_ip)
         # A lock to ensure a single message at a time
         self.lock = threading.Lock()
         # Start keep-alive sequence
@@ -85,7 +88,7 @@ class Inverter:
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
-        logging.info('Values: %s', result)
+        logging.debug('Values: %s', result)
         return result
 
     def request_history(self, start, end):
@@ -146,7 +149,7 @@ class ConnectionClosedException(Exception):
 # The TCP socket that listens for incoming connections
 _server = None
 
-def _connect():
+def _connect(interface_ip=''):
     """Makes a connection to an inverter (the inverter that responds first).
     Blocks while waiting for an incoming inverter connection. Will keep blocking
     if no inverters respond.
@@ -155,12 +158,13 @@ def _connect():
     
     You can connect to multiple inverters by calling this function multiple
     times (each subsequent call will make a connection to a new inverter)."""
+    logging.info('Searching for an inverter in the network')
     global _server
     if _server is None:
         # Lazy initialization of the TCP server
-        logging.debug('Binding TCP socket on port 1200 for incoming inverters')
+        logging.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
         _server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _server.bind(('', 1200))
+        _server.bind((interface_ip, 1200))
         _server.settimeout(5.0) # Timeout defines the time between broadcasts
         _server.listen(5)
     # Broadcast packet identifier (header, end)
@@ -168,9 +172,9 @@ def _connect():
     payload = b'I AM SERVER'
     message = _construct_request(identifier, payload)
     # Creating and binding broadcast socket
-    logging.debug('Binding UDP socket for broadcasting')
+    logging.debug('Binding UDP socket to %s:%s', interface_ip, 0)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('', 0))
+    sock.bind((interface_ip, 0))
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     # Looping to wait for incoming connections while sending broadcasts
     while True:
@@ -181,9 +185,8 @@ def _connect():
         except socket.timeout:
             pass
         else:
-            logging.info('New incoming connection from address %s', addr)
+            logging.info('Connected with inverter on address %s', addr)
             # Probably better to use 'with' instead
-            logging.debug('Closing UDP socket as it is no longer needed')
             sock.close()
             return conn, addr
 
@@ -209,8 +212,8 @@ if __name__ == '__main__':
     # To-do use argparse
     #parser = argparse.ArgumentParser(description='Monitoring tool for '
     #'SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
+    import time
     inverter = Inverter()
     while True:
-        s = input('? ')
-        values = inverter.request_values()
-        print(values)
+        print(inverter.request_values())
+        time.sleep()

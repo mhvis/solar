@@ -6,6 +6,7 @@
 
 import urllib.request
 import urllib.parse
+import urllib.error
 import logging
 
 class System:
@@ -37,8 +38,28 @@ class System:
         req = urllib.request.Request(url, data)
         req.add_header('X-Pvoutput-Apikey', self.api_key)
         req.add_header('X-Pvoutput-SystemId', self.system_id)
-        r = urllib.request.urlopen(req)
-        if r.status != 200:
-            logging.warning('%s request failed: %s %s', url, r.status, r.reason)
+        try:
+            r = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            logging.error('Upload failed: %s', e.read().decode())
         else:
-            logging.info('%s: %s %s', url, r.status, r.reason)
+            logging.debug('Response: %s', r.read().decode())
+
+# Test code
+if __name__ == '__main__':
+    import time
+    import configparser
+    data = {
+        'd': time.strftime('%Y%m%d'),
+        't': time.strftime('%H:%M'),
+        'v1': 0, # Energy today
+        'v2': 0, # Output power
+        'v5': 20.0, # Temperature
+        'v6': 230.0 # Grid voltage
+    }
+    config = configparser.ConfigParser()
+    config.read_file(open('solar_uploader.ini'))
+    api_key = config['System']['ApiKey']
+    system_id = config['System']['SystemId']
+    pv = System(api_key, system_id)
+    pv.add_status(data)

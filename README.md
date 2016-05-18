@@ -1,22 +1,30 @@
 # solar
 
-This readme is outdated (to-do update).
+PVOutput.org uploader for the following Samil Power inverters: SolarRiver TD
+series, SolarRiver TL-D series, SolarLake TL series.
 
-PVOutput.org uploader for Samil Power SolarRiver 4000TL-D solar inverter, designed to be run on a Rasperry Pi. It's a Python script that calls `curl`, so should work on a number of systems.
+Multiple inverter support is being implemented (requires a small change). See
+the [issues](https://github.com/mhvis/solar/issues) page for all to-do's.
 
-Note: I've only tested this on my one-inverter system. It probably won't work properly if there are two or more inverters on the same network.
+## Usage
 
-Usage:
+* Ensure both the system you're running this script on and the inverter are on
+the same network.
+* Create a user account for PVOutput.org and set-up your system. Get an API key
+from the account settings page.
+* Put your API key and system ID in `solar_uploader.ini`.
+* Run `solar_uploader.py`:
 
-`./solriv.py [INTERFACEIP]`
+`./solar_uploader.py`
 
-* Ensure both the system you're running this script on and the inverter are on the same network.
-* Create a user account for PVOutput.org and set-up your system. Get an API key from the account settings page.
-* Edit solriv.py with your API key and system ID.
-* Run the Python script. It will run continuously, logging common errors and information to syslog, upload progress to stdout and failing errors to strerr. This is how I run it as a background process on my Rasberry Pi:
+(Running it automatically on system startup can be achieved with `cron` or
+`rc.local`.)
 
-`./solriv.py > /tmp/solriv.log 2> /tmp/solriv.err &`
+If your system has multiple network interfaces, you can optionally force the
+script to use the correct one by specifying the system's IP address on the
+network in `solar_uploader.ini` (should not be needed).
 
-(Running it automatically on system startup can be achieved with `cron` or `rc.local`.)
+## Info
 
-If your system has multiple network interfaces, you can force the script to use the correct one by specifying the system's IP address on the network as a parameter.
+The protocol used by these inverters is (somewhat) described
+[here](https://github.com/mhvis/solar/wiki/Communication-protocol).

@@ -2,7 +2,7 @@
 
 # solar_uploader.py
 #
-# Daemon for automatically uploading SamilPower data to PVOutput. Uses solar.py
+# Daemon for automatically uploading Samil Power data to PVOutput. Uses solar.py
 # and pvoutput.py
 
 import solar
@@ -11,31 +11,18 @@ import sched
 import time
 import configparser
 import logging
-
-logging.basicConfig(level=logging.INFO)
-
-# The boundary on which to upload data in seconds (5 * 60 means every 5 minutes)
-boundary = 5 * 60
+import os.path
 
 def next_boundary(timestamp, boundary):
     """Returns a timestamp which is after the given time and on the given
     boundary."""
+    # TODO: create a more robust implementation using the 'datetime' library
     return timestamp + boundary - timestamp % boundary
-
-config = configparser.ConfigParser()
-config.read('solar_uploader.ini')
-api_key = config['System']['ApiKey']
-system_id = config['System']['SystemId']
-pv = pvoutput.System(api_key, system_id)
-inverter = solar.Inverter()
-
-s = sched.scheduler(time.time, time.sleep)
 
 def upload():
     global s
     values = inverter.request_values()
     if values['output_power'] > 0:
-        logging.info('Going to upload now %s', time.strftime('%H:%M'))
         data = {
             'd': time.strftime('%Y%m%d'),
             't': time.strftime('%H:%M'),
@@ -44,12 +31,28 @@ def upload():
             'v5': values['internal_temp'],
             'v6': values['grid_voltage']
         }
+        logging.info('Uploading: %s', data)
         pv.add_status(data)
     next_timestamp = next_boundary(time.time(), boundary)
-    logging.debug('Scheduling next upload for %s', next_timestamp)
     s.enterabs(next_timestamp, 1, upload, ())
 
-next_timestamp = next_boundary(time.time(), boundary)
-logging.debug('Scheduling first upload for %s', next_timestamp)
-s.enterabs(next_timestamp, 1, upload, ())
-s.run()
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    # Read config file
+    config = configparser.ConfigParser()
+    config.read_file(open(
+        os.path.dirname(os.path.abspath(__file__)) + '/solar_uploader.ini'))
+    api_key = config['System']['ApiKey']
+    system_id = config['System']['SystemId']
+    interface_ip = config['Core']['InterfaceIP']
+    # The boundary on which to upload data in seconds
+    boundary = config['Core']['StatusInterval'] * 60
+    pv = pvoutput.System(api_key, system_id)
+    # Connect to inverter
+    inverter = solar.Inverter(interface_ip)
+    # Schedule upload at next 5-minute boundary
+    s = sched.scheduler(time.time, time.sleep)
+    next_timestamp = next_boundary(time.time(), boundary)
+    s.enterabs(next_timestamp, 1, upload, ())
+    # Run scheduler
+    s.run()
