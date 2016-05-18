@@ -46,7 +46,7 @@ if __name__ == '__main__':
     system_id = config['System']['SystemId']
     interface_ip = config['Core']['InterfaceIP']
     # The boundary on which to upload data in seconds
-    boundary = config['Core']['StatusInterval'] * 60
+    boundary = config.getint('Core', 'StatusInterval') * 60
     pv = pvoutput.System(api_key, system_id)
     # Connect to inverter
     inverter = solar.Inverter(interface_ip)
