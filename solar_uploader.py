@@ -33,6 +33,8 @@ def upload():
         }
         logging.info('Uploading: %s', data)
         pv.add_status(data)
+    else:
+        logging.info('Not uploading, output power is 0')
     next_timestamp = next_boundary(time.time(), boundary)
     s.enterabs(next_timestamp, 1, upload, ())
 
@@ -53,6 +55,8 @@ if __name__ == '__main__':
     # Schedule upload at next 5-minute boundary
     s = sched.scheduler(time.time, time.sleep)
     next_timestamp = next_boundary(time.time(), boundary)
+    logging.info(
+        'Scheduled first upload at %s', time.strftime('%H:%M', next_timestamp))
     s.enterabs(next_timestamp, 1, upload, ())
     # Run scheduler
     s.run()
