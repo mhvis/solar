@@ -12,7 +12,7 @@ import time
 import configparser
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # The boundary on which to upload data in seconds (5 * 60 means every 5 minutes)
 boundary = 5 * 60
