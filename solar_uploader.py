@@ -35,7 +35,7 @@ def upload():
     global s
     values = inverter.request_values()
     if values['output_power'] > 0:
-        logging.debug('Going to upload now')
+        logging.info('Going to upload now %s', time.strftime('%H:%M'))
         data = {
             'd': time.strftime('%Y%m%d'),
             't': time.strftime('%H:%M'),
