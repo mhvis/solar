@@ -7,6 +7,7 @@
 
 import solar
 import pvoutput
+
 import sched
 import time
 import configparser
@@ -55,8 +56,7 @@ if __name__ == '__main__':
     # Schedule upload at next 5-minute boundary
     s = sched.scheduler(time.time, time.sleep)
     next_timestamp = next_boundary(time.time(), boundary)
-    logging.info(
-        'Scheduled first upload at %s', time.strftime('%H:%M', next_timestamp))
+    logging.info('Scheduled first upload at next boundary')
     s.enterabs(next_timestamp, 1, upload, ())
     # Run scheduler
     s.run()
