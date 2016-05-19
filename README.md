@@ -1,4 +1,4 @@
-# solar
+# Samil Power
 
 PVOutput.org uploader for the following Samil Power inverters: SolarRiver TD
 series, SolarRiver TL-D series, SolarLake TL series.
