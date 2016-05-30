@@ -49,7 +49,7 @@ if __name__ == '__main__':
     boundary = config.getint('Core', 'StatusInterval') * 60
     pvout = pvoutput.System(api_key, system_id)
     # Connect to inverter
-    with solar.Inverter(interface_ip) as inverter:
+    with samil.Inverter(interface_ip) as inverter:
         # Schedule upload at next boundary
         s = sched.scheduler(time.time, time.sleep)
         timestamp = next_timestamp(boundary)
