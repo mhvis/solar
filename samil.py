@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
 
-# solar.py
+# samil.py
 #
 # Library and CLI tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
 # series (Samil Power inverters).
 #
 # (Requires Python 3)
-#
-# To-do:
-# - close socket on interrupt
 
 import socket
 import threading
 import logging
 import argparse
-
-#logging.basicConfig(level=logging.DEBUG)
-#logging.basicConfig(level=logging.INFO)
 
 # Maximum time between packets (seconds float). If this time is reached a
 # keep-alive packet is sent.
@@ -51,6 +45,13 @@ class Inverter:
         self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
         self.keep_alive.daemon = True
         self.keep_alive.start()
+    
+    def __enter__(self):
+        self.sock.__enter__()
+        return self
+    
+    def __exit__(self, *args):
+        self.sock.__exit__(*args)
 
     def request_model_info(self):
         """Requests model information like the type, software version, and
@@ -117,22 +118,20 @@ class Inverter:
         if self.sock is None:
             raise ConnectionClosedException('Connection was already closed')
         # Acquire socket request lock
-        self.lock.acquire()
-        # Cancel a (possibly) running keep-alive timer
-        self.keep_alive.cancel()
-        request = _construct_request(identifier, payload)
-        self.sock.send(request)
-        data = self.sock.recv(1024)
-        if len(data) == 0:
-            self.sock = None
-            raise ConnectionClosedException('Connection closed')
-        response = _tear_down_response(data)
-        # Set keep-alive timer
-        self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
-        self.keep_alive.daemon = True
-        self.keep_alive.start()
-        # Release lock
-        self.lock.release()
+        with self.lock:
+            # Cancel a (possibly) running keep-alive timer
+            self.keep_alive.cancel()
+            request = _construct_request(identifier, payload)
+            self.sock.send(request)
+            data = self.sock.recv(1024)
+            if len(data) == 0:
+                self.sock = None
+                raise ConnectionClosedException('Connection closed')
+            response = _tear_down_response(data)
+            # Set keep-alive timer
+            self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
+            self.keep_alive.daemon = True
+            self.keep_alive.start()
         return response
     
     def __keep_alive(self):
@@ -146,9 +145,6 @@ class ConnectionClosedException(Exception):
     """Exception raised when the connection is closed or was already closed."""
     pass
 
-# The TCP socket that listens for incoming connections
-_server = None
-
 def _connect(interface_ip=''):
     """Makes a connection to an inverter (the inverter that responds first).
     Blocks while waiting for an incoming inverter connection. Will keep blocking
@@ -159,36 +155,32 @@ def _connect(interface_ip=''):
     You can connect to multiple inverters by calling this function multiple
     times (each subsequent call will make a connection to a new inverter)."""
     logging.info('Searching for an inverter in the network')
-    global _server
-    if _server is None:
-        # Lazy initialization of the TCP server
-        logging.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
-        _server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _server.bind((interface_ip, 1200))
-        _server.settimeout(5.0) # Timeout defines the time between broadcasts
-        _server.listen(5)
-    # Broadcast packet identifier (header, end)
-    identifier = b'\x00\x40\x02', b'\x04\x3a'
-    payload = b'I AM SERVER'
-    message = _construct_request(identifier, payload)
-    # Creating and binding broadcast socket
-    logging.debug('Binding UDP socket to %s:%s', interface_ip, 0)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((interface_ip, 0))
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    # Looping to wait for incoming connections while sending broadcasts
-    while True:
-        logging.debug('Broadcasting server existence')
-        sock.sendto(message, ('<broadcast>', 1300))
-        try:
-            conn, addr = _server.accept()
-        except socket.timeout:
-            pass
-        else:
-            logging.info('Connected with inverter on address %s', addr)
-            # Probably better to use 'with' instead
-            sock.close()
-            return conn, addr
+    # Initialization of the TCP server
+    logging.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.bind((interface_ip, 1200))
+        server.settimeout(5.0) # Timeout defines the time between broadcasts
+        server.listen(5)
+        # Broadcast packet identifier (header, end)
+        identifier = b'\x00\x40\x02', b'\x04\x3a'
+        payload = b'I AM SERVER'
+        message = _construct_request(identifier, payload)
+        # Creating and binding broadcast socket
+        logging.debug('Binding UDP socket to %s:%s', interface_ip, 0)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as bc_sock:
+            bc_sock.bind((interface_ip, 0))
+            bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            # Looping to wait for incoming connections while sending broadcasts
+            while True:
+                logging.debug('Broadcasting server existence')
+                bc_sock.sendto(message, ('<broadcast>', 1300))
+                try:
+                    conn, addr = server.accept()
+                except socket.timeout:
+                    pass
+                else:
+                    logging.info('Connected with inverter on address %s', addr)
+                    return conn, addr
 
 def _construct_request(identifier, payload):
     """Helper function to construct a request message to send."""
@@ -213,7 +205,7 @@ if __name__ == '__main__':
     #parser = argparse.ArgumentParser(description='Monitoring tool for '
     #'SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
     import time
-    inverter = Inverter()
-    while True:
-        print(inverter.request_values())
-        time.sleep()
+    with Inverter() as inverter:
+        while True:
+            print(inverter.request_values())
+            time.sleep(5)

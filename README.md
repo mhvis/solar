@@ -12,17 +12,17 @@ the [issues](https://github.com/mhvis/solar/issues) page for all to-do's.
 the same network.
 * Create a user account for PVOutput.org and set-up your system. Get an API key
 from the account settings page.
-* Put your API key and system ID in `solar_uploader.ini`.
-* Run `solar_uploader.py`:
+* Put your API key and system ID in `samil_upload.ini`.
+* Run `samil_upload.py`:
 
-`./solar_uploader.py`
+`./samil_upload.py`
 
 (Running it automatically on system startup can be achieved with `cron` or
 `rc.local`.)
 
 If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
-network in `solar_uploader.ini` (should not be needed).
+network in `samil_upload.ini` (should not be needed).
 
 ## Info
 
