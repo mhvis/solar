@@ -5,7 +5,7 @@
 # Daemon for automatically uploading Samil Power data to PVOutput. Uses samil.py
 # and pvoutput.py
 
-import solar
+import samil
 import pvoutput
 
 import sched
