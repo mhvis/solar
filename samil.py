@@ -67,10 +67,13 @@ class Inverter:
         identifier = b'\x01\x02\x02', b'\x01\x04'
         # Make request and receive response
         header, payload, end = self.__make_request(identifier, b'')
-        # Separate each value
-        values = zip(payload[0::2], payload[1::2])
+        # Separate each short value
+        values = [payload[i:i+2] for i in range(0, len(payload) - 4, 2)]
+        values += [payload[-4:]]
         # Turn each value into an integer
         ints = [int.from_bytes(x, byteorder='big') for x in values]
+        # Operating modes
+        op_modes = {0: 'wait', 1: 'normal', 5: 'pv_power_off'}
         result = {
             'internal_temp': ints[0] / 10.0, # degrees C
             'pv1_voltage': ints[1] / 10.0, # V
@@ -78,6 +81,7 @@ class Inverter:
             'pv1_current': ints[3] / 10.0, # A
             'pv2_current': ints[4] / 10.0, # A
             'total_operation_hours': ints[6], # h
+            'operating_mode': op_modes[ints[7]],
             'energy_today': ints[8] / 100.0, # kWh
             'pv1_input_power': ints[19], # W
             'pv2_input_power': ints[20], # W
@@ -85,7 +89,7 @@ class Inverter:
             'grid_voltage': ints[22] / 10.0, # V
             'grid_frequency': ints[23] / 100.0, # Hz
             'output_power': ints[24], # W
-            #'energy_total': ints[26] * 100.0, # kWh
+            'energy_total': ints[25] / 10.0, # kWh
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
