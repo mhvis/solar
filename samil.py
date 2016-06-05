@@ -56,10 +56,10 @@ class Inverter:
     def request_model_info(self):
         """Requests model information like the type, software version, and
         inverter 'name'."""
-        #identifier = b'\x01\x03\x02', b'\x01\x05'
-        #response = self.__make_request(identifier, b'')
+        identifier = b'\x01\x03\x02', b'\x01\x05'
+        response = self.__make_request(identifier, b'')
         # TODO: format a nice return value
-        raise NotImplementedError('Not yet implemented')
+        #raise NotImplementedError('Not yet implemented')
         #return response
 
     def request_values(self):
@@ -128,6 +128,8 @@ class Inverter:
                 self.sock = None
                 raise ConnectionClosedException('Connection closed')
             response = _tear_down_response(data)
+            logging.debug('Request: %s', request)
+            logging.debug('Response: %s', response)
             # Set keep-alive timer
             self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
             self.keep_alive.daemon = True
@@ -158,6 +160,8 @@ def _connect(interface_ip=''):
     # Initialization of the TCP server
     logging.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        # For making rebinding directly possible
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((interface_ip, 1200))
         server.settimeout(5.0) # Timeout defines the time between broadcasts
         server.listen(5)
@@ -168,8 +172,8 @@ def _connect(interface_ip=''):
         # Creating and binding broadcast socket
         logging.debug('Binding UDP socket to %s:%s', interface_ip, 0)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as bc_sock:
-            bc_sock.bind((interface_ip, 0))
             bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            bc_sock.bind((interface_ip, 0))
             # Looping to wait for incoming connections while sending broadcasts
             while True:
                 logging.debug('Broadcasting server existence')
@@ -200,12 +204,18 @@ def _tear_down_response(data):
     response_end = data[-2:]
     return response_header, response_payload, response_end
 
+# Test procedure
 if __name__ == '__main__':
     # To-do use argparse
     #parser = argparse.ArgumentParser(description='Monitoring tool for '
     #'SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
     import time
+    logging.basicConfig(level=logging.DEBUG)
     with Inverter() as inverter:
         while True:
             print(inverter.request_values())
-            time.sleep(5)
+            inverter.request_model_info()
+            inverter.request_unknown_1()
+            inverter.request_unknown_2()
+            inverter.request_unknown_3()
+            time.sleep(8)
