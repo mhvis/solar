@@ -75,7 +75,7 @@ class Inverter:
         ints = [int.from_bytes(x, byteorder='big') for x in values]
         # Operating modes
         op_modes = {0: 'wait', 1: 'normal', 5: 'pv_power_off'}
-        op_mode = op_modes[int[7]] if ints[7] in op_modes else str(ints[7])
+        op_mode = op_modes[ints[7]] if ints[7] in op_modes else str(ints[7])
         result = {
             'internal_temp': ints[0] / 10.0, # degrees C
             'pv1_voltage': ints[1] / 10.0, # V
