@@ -35,6 +35,8 @@ def upload(inverter, pvoutput, scheduler, timestamp, boundary):
         }
         logging.info('Uploading: %s', data)
         pvoutput.add_status(data)
+    else:
+        logging.info('Not uploading since output power is 0')
     sched_args = (inverter, pvoutput, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
