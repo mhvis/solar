@@ -23,16 +23,18 @@ def next_timestamp(boundary):
 def upload(inverter, pvoutput, scheduler, timestamp, boundary):
     """Retrieves and uploads inverter data, and schedules the next upload."""
     values = inverter.request_values()
-    data = {
-        'd': time.strftime('%Y%m%d'),
-        't': time.strftime('%H:%M'),
-        'v1': round(values['energy_today'] * 1000),
-        'v2': values['output_power'],
-        'v5': values['internal_temp'],
-        'v6': values['grid_voltage']
-    }
-    logging.info('Uploading: %s', data)
-    pvoutput.add_status(data)
+    # Maybe use operating mode instead
+    if values['output_power'] > 0:
+        data = {
+            'd': time.strftime('%Y%m%d'),
+            't': time.strftime('%H:%M'),
+            'v1': round(values['energy_today'] * 1000),
+            'v2': values['output_power'],
+            'v5': values['internal_temp'],
+            'v6': values['grid_voltage']
+        }
+        logging.info('Uploading: %s', data)
+        pvoutput.add_status(data)
     sched_args = (inverter, pvoutput, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 

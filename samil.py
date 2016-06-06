@@ -60,7 +60,8 @@ class Inverter:
         response = self.__make_request(identifier, b'')
         # TODO: format a nice return value
         #raise NotImplementedError('Not yet implemented')
-        #return response
+        logging.info('Model info: %s', response)
+        return response
 
     def request_values(self):
         """Requests current values which are returned as a dictionary."""
@@ -73,7 +74,9 @@ class Inverter:
         # Turn each value into an integer
         ints = [int.from_bytes(x, byteorder='big') for x in values]
         # Operating modes
-        op_modes = {0: 'wait', 1: 'normal', 5: 'pv_power_off'}
+        #op_modes = {0: 'wait', 1: 'normal', 5: 'pv_power_off'}
+        op_modes = {0: 'wait', 5: 'pv_power_off'}
+        op_mode = op_modes[int[7]] if ints[7] in op_modes else str(ints[7])
         result = {
             'internal_temp': ints[0] / 10.0, # degrees C
             'pv1_voltage': ints[1] / 10.0, # V
@@ -81,7 +84,8 @@ class Inverter:
             'pv1_current': ints[3] / 10.0, # A
             'pv2_current': ints[4] / 10.0, # A
             'total_operation_hours': ints[6], # h
-            'operating_mode': op_modes[ints[7]],
+            # Operating mode needs more testing/verifying
+            'operating_mode': op_mode,
             'energy_today': ints[8] / 100.0, # kWh
             'pv1_input_power': ints[19], # W
             'pv2_input_power': ints[20], # W
@@ -93,7 +97,7 @@ class Inverter:
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
-        logging.debug('Values: %s', result)
+        logging.info('Current values: %s', result)
         return result
 
     def request_history(self, start, end):
@@ -217,7 +221,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     with Inverter() as inverter:
         while True:
-            print(inverter.request_values())
+            inverter.request_values()
             inverter.request_model_info()
             inverter.request_unknown_1()
             inverter.request_unknown_2()
