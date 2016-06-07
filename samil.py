@@ -96,7 +96,7 @@ class Inverter:
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
-        logging.info('Current values: %s', result)
+        logging.debug('Current values: %s', result)
         return result
 
     def request_history(self, start, end):
