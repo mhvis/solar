@@ -44,8 +44,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     # Read config file
     config = configparser.ConfigParser()
-    config.read_file(open(
-        os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'))
+    config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
+    config.read_file(open(config_file))
     api_key = config['System']['ApiKey']
     system_id = config['System']['SystemId']
     interface_ip = config['Core']['InterfaceIP']
