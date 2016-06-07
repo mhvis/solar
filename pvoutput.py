@@ -39,11 +39,14 @@ class System:
         req.add_header('X-Pvoutput-Apikey', self.api_key)
         req.add_header('X-Pvoutput-SystemId', self.system_id)
         try:
-            r = urllib.request.urlopen(req)
+            f = urllib.request.urlopen(req)
         except urllib.error.HTTPError as e:
             logging.error('Upload failed: %s', e.read().decode())
+        except urllib.error.URLError as e:
+            logging.error('Upload failed: %s', e)
         else:
-            logging.debug('Response: %s', r.read().decode())
+            with f:
+                logging.debug('Response: %s', f.read().decode())
 
 # Test code
 if __name__ == '__main__':
