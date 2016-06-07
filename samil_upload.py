@@ -24,7 +24,7 @@ def upload(inverter, pvoutput, scheduler, timestamp, boundary):
     """Retrieves and uploads inverter data, and schedules the next upload."""
     values = inverter.request_values()
     # Maybe use operating mode instead
-    if values['output_power'] > 0:
+    if values['operating_mode'] == 'normal':
         data = {
             'd': time.strftime('%Y%m%d'),
             't': time.strftime('%H:%M'),
@@ -36,7 +36,7 @@ def upload(inverter, pvoutput, scheduler, timestamp, boundary):
         logging.info('Uploading: %s', data)
         pvoutput.add_status(data)
     else:
-        logging.info('Not uploading since output power is 0')
+        logging.info('Not uploading since operating mode is not normal')
     sched_args = (inverter, pvoutput, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
