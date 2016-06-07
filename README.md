@@ -26,7 +26,7 @@ If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
 network in `samil_upload.ini` (should not be needed).
 
-## Configuration
+## Multiple inverters configuration
 
 For using multiple inverters, you add a section for each inverter, in which you
 specify the inverter serial number or IP address. The settings in the DEFAULTS
