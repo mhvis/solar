@@ -153,6 +153,10 @@ class Inverter:
         # Possibly also return model name/serial number
         return self.addr[0]
 
+    def __repr__(self):
+        # See __str__
+        return self.addr[0]
+
 
 class ConnectionClosedException(Exception):
     """Exception raised when the connection is closed or was already closed."""

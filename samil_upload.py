@@ -76,7 +76,8 @@ def main():
             for section_name in sections:
                 if applies(inverter, config[section_name]):
                     section_inverter.append((config[section_name], inverter))
-                    logging.info('Match with configuration %s', section_name)
+                    logging.info('Matched inverter with configuration \'%s\'',
+                            section_name)
                 else:
                     new_sections += section_name
             sections = new_sections
@@ -97,7 +98,7 @@ def main():
             timestamp = next_timestamp(boundary)
             sched_args = (pv, inverters, scheduler, timestamp, boundary)
             scheduler.enterabs(timestamp, 1, upload, sched_args)
-        logging.info('Scheduled first uploads')
+        logging.info('Scheduled first upload')
 
         # Run scheduler
         scheduler.run()
