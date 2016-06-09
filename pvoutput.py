@@ -33,8 +33,7 @@ class System:
 
     def __make_request(self, url, data):
         logging.debug('Making request: %s, %s', url, data)
-        data = urllib.parse.urlencode(data)
-        data = data.encode('ascii')
+        data = urllib.parse.urlencode(data).encode('ascii')
         req = urllib.request.Request(url, data)
         req.add_header('X-Pvoutput-Apikey', self.api_key)
         req.add_header('X-Pvoutput-SystemId', self.system_id)
@@ -47,6 +46,16 @@ class System:
         else:
             with f:
                 logging.debug('Response: %s', f.read().decode())
+
+    def __str__(self):
+        return self.system_id.__str__()
+
+    def __hash__(self):
+        return self.system_id.__hash__()
+
+    def __eq__(self, other):
+        return self.system_id.__eq__(other)
+
 
 # Test code
 if __name__ == '__main__':
@@ -61,8 +70,9 @@ if __name__ == '__main__':
         'v6': 230.0 # Grid voltage
     }
     config = configparser.ConfigParser()
-    config.read_file(open('solar_uploader.ini'))
-    api_key = config['System']['ApiKey']
-    system_id = config['System']['SystemId']
+    config.read_file(open('samil_upload.ini'))
+    # Assumes a default API key and system ID
+    api_key = config['DEFAULTS']['API key']
+    system_id = config['DEFAULTS']['System ID']
     pv = System(api_key, system_id)
     pv.add_status(data)
