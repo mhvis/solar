@@ -19,7 +19,7 @@ import os.path
 
 def applies(inverter, section):
     """Returns whether the inverter applies for given configuration section."""
-    if not section['IP address']:
+    if 'IP address' not in section or not section['IP address']:
         return True
     if section['IP address'] == inverter.addr[0]:
         return True
