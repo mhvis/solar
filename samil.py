@@ -149,6 +149,10 @@ class Inverter:
         identifier = b'\x01\x09\x02', b'\x01\x0b'
         self.__make_request(identifier, b'')
 
+    def __str__(self):
+        # Possibly also return model name/serial number
+        return self.addr[0]
+
 
 class ConnectionClosedException(Exception):
     """Exception raised when the connection is closed or was already closed."""
