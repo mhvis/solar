@@ -3,24 +3,20 @@
 PVOutput.org uploader for the following Samil Power inverters: SolarRiver TD
 series, SolarRiver TL-D series, SolarLake TL series.
 
-Multiple inverter support is being implemented (requires a small change). See
-the [issues](https://github.com/mhvis/solar/issues) page for all to-do's.
-
 I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
 
 ## Usage
 
 * Ensure both the system you're running this script on and the inverter are on
 the same network.
-* Create a user account for PVOutput.org and set-up your system. Get an API key
-from the account settings page.
-* Put your API key and system ID in `samil_upload.ini`.
-* Run `samil_upload.py`:
+* Obtain your PVOutput.org data (API key, system ID) and put this in
+`samil_upload.ini`. If you have multiple inverters, see the next section for
+advanced configurations.
+* Make sure Python 3 is installed.
+* Run `samil_upload.py` with the command `./samil_upload.py`
 
-`./samil_upload.py`
-
-(Running it automatically on system startup can be achieved with `cron` or
-`rc.local`.)
+Running it automatically on system startup can be achieved with `cron` or
+`rc.local`.
 
 If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
