@@ -85,7 +85,7 @@ def main():
         systems = dict()
         for section, inverter in section_inverter:
             pv = pvoutput.System(section['API key'], section['System ID'])
-            if pv in systems:
+            if pv not in systems:
                 systems[pv] = (section.getint('Status interval') * 60, [inverter])
             else:
                 systems[pv][1] += inverter
