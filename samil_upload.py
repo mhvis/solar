@@ -75,7 +75,7 @@ def main():
             new_sections = []
             for section_name in sections:
                 if applies(inverter, config[section_name]):
-                    section_inverter += (config[section_name], inverter)
+                    section_inverter.append((config[section_name], inverter))
                     logging.info('Match with configuration %s', section_name)
                 else:
                     new_sections += section_name
