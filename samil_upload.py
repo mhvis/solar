@@ -7,13 +7,15 @@
 
 import samil
 import pvoutput
+# ExitStack needed from own module because it is only available from Python 3.3
+# onwards in the standard library (I use Python 3.2 on RPi).
+import exitstack
 
 import sched
 import time
 import configparser
 import logging
 import os.path
-import contextlib
 
 def applies(inverter, section):
     """Returns whether the inverter applies for given configuration section."""
@@ -64,7 +66,7 @@ def main():
     logging.debug('Read configuration: %s', config)
 
     # Context manager to gracefully close sockets
-    with contextlib.ExitStack() as stack:
+    with exitstack.ExitStack() as stack:
 
         # Connect to inverters & match sections
         section_inverter = []
