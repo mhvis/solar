@@ -51,7 +51,7 @@ class System:
         return self.system_id.__str__()
 
     def __repr__(self):
-        return self.system.id.__repr__()
+        return self.system_id.__repr__()
 
     def __hash__(self):
         return self.system_id.__hash__()
