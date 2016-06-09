@@ -13,52 +13,93 @@ import time
 import configparser
 import logging
 import os.path
+import contextlib
+
+def applies(inverter, section):
+    """Returns whether the inverter applies for given configuration section."""
+    if not section['IP address']:
+        return True
+    if section['IP address'] == inverter.addr[0]:
+        return True
+    return False
 
 def next_timestamp(boundary):
-    """Returns a timestamp which is after the current timestamp and on the given
-    boundary."""
+    """Returns the timestamp for the first moment after current time on the
+    given boundary."""
     timestamp = time.time()
     return timestamp + boundary - timestamp % boundary
 
-def upload(inverter, pvoutput, scheduler, timestamp, boundary):
+def upload(pv, inverters, scheduler, timestamp, boundary):
     """Retrieves and uploads inverter data, and schedules the next upload."""
-    values = inverter.request_values()
-    # Maybe use operating mode instead
-    if values['operating_mode'] == 'normal':
+    values = [inverter.request_values() for inverter in inverters]
+    # Filter systems with normal operating mode
+    values = [val for val in values if val['operating_mode'] == 'normal']
+
+    if values:
         data = {
             'd': time.strftime('%Y%m%d'),
             't': time.strftime('%H:%M'),
-            'v1': round(values['energy_today'] * 1000),
-            'v2': values['output_power'],
-            'v5': values['internal_temp'],
-            'v6': values['grid_voltage']
+            'v1': round(sum(value['energy_today'] for value in values) * 1000),
+            'v2': sum(value['output_power'] for value in values),
+            'v5': sum(value['internal_temp'] for value in values) / len(values),
+            'v6': sum(value['grid_voltage'] for value in values) / len(values)
         }
         logging.info('Uploading: %s', data)
-        pvoutput.add_status(data)
+        pv.add_status(data)
     else:
-        logging.info('Not uploading since operating mode is not normal')
-    sched_args = (inverter, pvoutput, scheduler, timestamp + boundary, boundary)
+        logging.info('Not uploading, no inverter has operating mode normal')
+    sched_args = (pv, inverters, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    # Read config file
+def main():
+    """Reads configuration, connects to inverters and schedules uploads."""
+    # Read config
     config = configparser.ConfigParser()
     config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
     config.read_file(open(config_file))
-    api_key = config['System']['ApiKey']
-    system_id = config['System']['SystemId']
-    interface_ip = config['Core']['InterfaceIP']
-    # The boundary on which to upload data in seconds
-    boundary = config.getint('Core', 'StatusInterval') * 60
-    pvout = pvoutput.System(api_key, system_id)
-    # Connect to inverter
-    with samil.Inverter(interface_ip) as inverter:
-        # Schedule upload at next boundary
-        s = sched.scheduler(time.time, time.sleep)
-        timestamp = next_timestamp(boundary)
-        logging.info('Scheduled first upload at next boundary')
-        sched_args = (inverter, pvout, s, timestamp, boundary)
-        s.enterabs(timestamp, 1, upload, sched_args)
+    interface_ip = ''
+    if config.has_option('DEFAULTS', 'Interface IP'):
+        interface_ip = config['DEFAULTS']['Interface IP']
+    sections = config.sections() if config.sections() else ['DEFAULTS']
+    logging.debug('Read configuration: %s', config)
+
+    # Context manager to gracefully close sockets
+    with contextlib.ExitStack() as stack:
+
+        # Connect to inverters & match sections
+        section_inverter = []
+        while sections:
+            inverter = stack.enter_context(samil.Inverter(interface_ip))
+            new_sections = []
+            for section_name in sections:
+                if applies(inverter, config[section_name]):
+                    section_inverter += (config[section_name], inverter)
+                    logging.info('Match with configuration %s', section_name)
+                else:
+                    new_sections += section_name
+            sections = new_sections
+
+        # Find equal PVOutput systems
+        systems = dict()
+        for section, inverter in section_inverter:
+            pv = pvoutput.System(section['API key'], section['System ID'])
+            if pv in systems:
+                systems[pv] = (section.getint('Status interval') * 60, [inverter])
+            else:
+                systems[pv][1] += inverter
+        logging.info('Systems configuration: %s', systems)
+
+        # Schedule uploads
+        scheduler = sched.scheduler(time.time, time.sleep)
+        for pv, (boundary, inverters) in systems.items():
+            timestamp = next_timestamp(boundary)
+            sched_args = (pv, inverters, scheduler, timestamp, boundary)
+            scheduler.enterabs(timestamp, 1, upload, sched_args)
+        logging.info('Scheduled first uploads')
+
         # Run scheduler
-        s.run()
+        scheduler.run()
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    main()
