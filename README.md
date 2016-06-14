@@ -25,7 +25,7 @@ network in `samil_upload.ini` (should not be needed).
 ## Multiple inverters configuration
 
 For using multiple inverters, you add a section for each inverter, in which you
-specify the inverter serial number or IP address. The settings in the DEFAULTS
+specify the inverter serial number or IP address. The settings in the DEFAULT
 section apply to all inverters (useful for the API key). These can also be
 overridden in an inverter section.
 
@@ -34,7 +34,7 @@ Here are some examples:
 ### Single inverter
 
 ```
-[DEFAULTS]
+[DEFAULT]
 # Number of minutes between uploads
 Status interval = 5
 # Interface to bind to, optional
@@ -50,7 +50,7 @@ Energy data is accumulated, temperature and voltage data is averaged when
 multiple systems have the same PVOutput system ID.
 
 ```
-[DEFAULTS]
+[DEFAULT]
 Status interval = 5
 
 API key = AnkieIsLiev
@@ -66,7 +66,7 @@ Serial number = HELLO
 ### Two inverters, separate PVOutput system, by IP address
 
 ```
-[DEFAULTS]
+[DEFAULT]
 Status interval = 5
 
 API key = NoortjeOok

@@ -53,16 +53,13 @@ def upload(pv, inverters, scheduler, timestamp, boundary):
     sched_args = (pv, inverters, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
-def main():
+def main(config, Inverter):
     """Reads configuration, connects to inverters and schedules uploads."""
     # Read config
-    config = configparser.ConfigParser()
-    config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
-    config.read_file(open(config_file))
     interface_ip = ''
-    if config.has_option('DEFAULTS', 'Interface IP'):
-        interface_ip = config['DEFAULTS']['Interface IP']
-    sections = config.sections() if config.sections() else ['DEFAULTS']
+    if config.has_option('DEFAULT', 'Interface IP'):
+        interface_ip = config['DEFAULT']['Interface IP']
+    sections = config.sections() if config.sections() else ['DEFAULT']
     logging.debug('Read configuration: %s', config)
 
     # Context manager to gracefully close sockets
@@ -71,7 +68,7 @@ def main():
         # Connect to inverters & match sections
         section_inverter = []
         while sections:
-            inverter = stack.enter_context(samil.Inverter(interface_ip))
+            inverter = stack.enter_context(Inverter(interface_ip))
             new_sections = []
             for section_name in sections:
                 if applies(inverter, config[section_name]):
@@ -105,4 +102,7 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    main()
+    config = configparser.ConfigParser()
+    config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
+    config.read_file(open(config_file))
+    main(config, samil.Inverter)
