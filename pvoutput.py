@@ -57,7 +57,7 @@ class System:
         return self.system_id.__hash__()
 
     def __eq__(self, other):
-        return self.system_id.__eq__(other)
+        return self.system_id == other.system_id
 
 
 # Test code

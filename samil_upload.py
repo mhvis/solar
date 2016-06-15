@@ -60,7 +60,7 @@ def main(config, Inverter):
     if config.has_option('DEFAULT', 'Interface IP'):
         interface_ip = config['DEFAULT']['Interface IP']
     sections = config.sections() if config.sections() else ['DEFAULT']
-    logging.debug('Read configuration: %s', config)
+    logging.info('Configuration sections: %s', sections)
 
     # Context manager to gracefully close sockets
     with exitstack.ExitStack() as stack:
@@ -73,10 +73,10 @@ def main(config, Inverter):
             for section_name in sections:
                 if applies(inverter, config[section_name]):
                     section_inverter.append((config[section_name], inverter))
-                    logging.info('Matched inverter with configuration \'%s\'',
-                            section_name)
+                    logging.info('Matched inverter %s with configuration %s',
+                            inverter, section_name)
                 else:
-                    new_sections += section_name
+                    new_sections.append(section_name)
             sections = new_sections
 
         # Find equal PVOutput systems
@@ -86,8 +86,8 @@ def main(config, Inverter):
             if pv not in systems:
                 systems[pv] = (section.getint('Status interval') * 60, [inverter])
             else:
-                systems[pv][1] += inverter
-        logging.info('Systems configuration: %s', systems)
+                systems[pv][1].append(inverter)
+        logging.info('Final systems: %s', systems)
 
         # Schedule uploads
         scheduler = sched.scheduler(time.time, time.sleep)
