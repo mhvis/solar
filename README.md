@@ -49,6 +49,9 @@ System ID = YourSystemId
 Energy data is accumulated, temperature and voltage data is averaged when
 multiple systems have the same PVOutput system ID.
 
+**Note:** selection by serial number is not yet implemented, use IP address
+instead.
+
 ```
 [DEFAULT]
 Status interval = 5
