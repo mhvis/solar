@@ -25,9 +25,15 @@ network in `samil_upload.ini` (should not be needed).
 ## Multiple inverters configuration
 
 For using multiple inverters, you add a section for each inverter, in which you
-specify the inverter serial number or IP address. The settings in the DEFAULT
-section apply to all inverters (useful for the API key). These can also be
-overridden in an inverter section.
+can specify the inverter serial number or IP address. The settings in the
+DEFAULT section apply to all inverters (useful for the API key). These can also
+be overridden in an inverter section. A serial number or IP address acts as a
+filter, when it is empty or not specified it is considered true. When an
+inverter connection is made, it is matched to all sections with equal and/or
+empty serial number and IP address. A section will only match one inverter,
+which is the first inverter found in the network that applies to the section
+filter. Thus if you have multiple sections without a specified serial number and
+IP address, the first inverter found is matched to all these sections.
 
 Here are some examples:
 
@@ -46,8 +52,14 @@ System ID = YourSystemId
 
 ### Two inverters, same PVOutput system, by serial number
 
-Energy data is accumulated, temperature and voltage data is averaged when
-multiple systems have the same PVOutput system ID.
+When multiple sections point to the same PVOutput system ID, the data of each
+section is combined before it is send to PVOutput. The energy data is
+accumulated and all other data (temperature, voltage) is averaged.
+
+When the serial number is ommited, this configuration will behave differently:
+the first inverter that is connected will match both systems (since both systems
+don't have serial number or IP address specified). Therefore only the data of
+that first inverter is combined (doubled) and sent to PVOutput.
 
 **Note:** selection by serial number is not yet implemented, use IP address
 instead.
@@ -84,7 +96,9 @@ IP address = 192.168.80.31
 ```
 
 It is also possible to add more inverters, have separate API keys or use
-different status intervals.
+different status intervals. If anything is unclear or you need more help setting
+up your systems, make an [issue](https://github.com/mhvis/solar/issues) or
+[contact me](mailto:mail@maartenvisscher.nl).
 
 ## Info
 
