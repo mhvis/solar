@@ -52,6 +52,9 @@ System ID = YourSystemId
 
 ### Two inverters, same PVOutput system, by serial number
 
+**Note: filtering by serial number is not yet implemented!** Use IP address
+instead.
+
 When multiple sections point to the same PVOutput system ID, the data of each
 section is combined before it is send to PVOutput. The energy data is
 accumulated and all other data (temperature, voltage) is averaged.
@@ -60,9 +63,6 @@ When the serial number is ommited, this configuration will behave differently:
 the first inverter that is connected will match both systems (since both systems
 don't have serial number or IP address specified). Therefore only the data of
 that first inverter is combined (doubled) and sent to PVOutput.
-
-**Note:** selection by serial number is not yet implemented, use IP address
-instead.
 
 ```
 [DEFAULT]
