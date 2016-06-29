@@ -9,14 +9,17 @@ I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
 
 * Ensure both the system you're running this script on and the inverter are on
 the same network.
-* Obtain your PVOutput.org data (API key, system ID) and put this in
-`samil_upload.ini`. If you have multiple inverters, see the next section for
-advanced configurations.
-* Make sure Python 3 is installed.
-* Run `samil_upload.py` with the command `./samil_upload.py`
+* Ensure Python 3 is installed (needed for this script).
+* Obtain your PVOutput.org API key and system ID and put this in
+`samil_upload.ini`. If you have multiple inverters, see the section on [multiple
+inverters configuration](#multiple-inverters-configuration).
+* Run `samil_upload.py` (for Linux: `./samil_upload.py`).
 
-Running it automatically on system startup can be achieved with `cron` or
-`rc.local`.
+If you are using a Linux distro with SysV (`/etc/init.d`) like the Raspberry Pi
+you can use a service script to run it automatically on startup. [See here
+](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you could also
+make a `cron` entry: run `crontab -e` and add `@reboot /path/to/samil_upload.py`
+to the file.
 
 If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
@@ -27,9 +30,8 @@ network in `samil_upload.ini` (should not be needed).
 For using multiple inverters, you add a section for each inverter, in which you
 can specify the inverter serial number or IP address. The settings in the
 DEFAULT section apply to all inverters (useful for the API key). These can also
-be overridden in an inverter section. A serial number or IP address acts as a
-filter, when it is empty or not specified it is considered true. When an
-inverter connection is made, it is matched to all sections with equal and/or
+be overridden in an inverter section. When a new inverter is found in the
+network, it is matched to all sections with equal and/or
 empty serial number and IP address. A section will only match one inverter,
 which is the first inverter found in the network that applies to the section
 filter. Thus if you have multiple sections without a specified serial number and
