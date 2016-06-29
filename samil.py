@@ -190,13 +190,17 @@ def _connect(interface_ip=''):
             bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             bc_sock.bind((interface_ip, 0))
             # Looping to wait for incoming connections while sending broadcasts
+            tries = 0
             while True:
+                if tries == 10:
+                    logging.warning('Connecting to inverter is taking a long '
+                            'time, is it reachable?')
                 logging.debug('Broadcasting server existence')
                 bc_sock.sendto(message, ('<broadcast>', 1300))
                 try:
                     conn, addr = server.accept()
                 except socket.timeout:
-                    pass
+                    tries += 1
                 else:
                     logging.info('Connected with inverter on address %s', addr)
                     return conn, addr
