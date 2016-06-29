@@ -4,6 +4,7 @@ from unittest.mock import Mock, MagicMock
 import samil_upload
 import configparser
 import logging
+import sys
 
 def one_system_default(config):
     config['DEFAULT'] = {'Status interval': '1', 'API key': 'a', 'System ID': 'a'}
@@ -81,5 +82,5 @@ def main(func):
     print(inverter.mock_calls)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     main(three_systems_combine)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 # samil.py
 #
 # Library and CLI tool for SolarRiver TD, SolarRiver TL-D and SolarLake TL
@@ -11,6 +10,9 @@ import socket
 import threading
 import logging
 import argparse
+import sys
+
+logger = logging.getLogger(__name__)
 
 # Maximum time between packets (seconds float). If this time is reached a
 # keep-alive packet is sent.
@@ -60,7 +62,7 @@ class Inverter:
         response = self.__make_request(identifier, b'')
         # TODO: format a nice return value
         #raise NotImplementedError('Not yet implemented')
-        logging.info('Model info: %s', response)
+        logger.info('Model info: %s', response)
         return response
 
     def request_values(self):
@@ -96,7 +98,7 @@ class Inverter:
         }
         # For more info on the data format:
         # https://github.com/mhvis/solar/wiki/Communication-protocol#messages
-        logging.debug('Current values: %s', result)
+        logger.debug('Current values: %s', result)
         return result
 
     def request_history(self, start, end):
@@ -135,8 +137,8 @@ class Inverter:
                 self.sock = None
                 raise ConnectionClosedException('Connection closed')
             response = _tear_down_response(data)
-            logging.debug('Request: %s', request)
-            logging.debug('Response: %s', response)
+            logger.debug('Request: %s', request)
+            logger.debug('Response: %s', response)
             # Set keep-alive timer
             self.keep_alive = threading.Timer(keep_alive_time, self.__keep_alive)
             self.keep_alive.daemon = True
@@ -145,7 +147,7 @@ class Inverter:
     
     def __keep_alive(self):
         """Makes a keep-alive request."""
-        logging.debug('Keep alive')
+        logger.debug('Keep alive')
         identifier = b'\x01\x09\x02', b'\x01\x0b'
         self.__make_request(identifier, b'')
 
@@ -171,9 +173,9 @@ def _connect(interface_ip=''):
     
     You can connect to multiple inverters by calling this function multiple
     times (each subsequent call will make a connection to a new inverter)."""
-    logging.info('Searching for an inverter in the network')
+    logger.info('Searching for an inverter in the network')
     # Initialization of the TCP server
-    logging.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
+    logger.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         # For making rebinding directly possible
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -185,7 +187,7 @@ def _connect(interface_ip=''):
         payload = b'I AM SERVER'
         message = _construct_request(identifier, payload)
         # Creating and binding broadcast socket
-        logging.debug('Binding UDP socket to %s:%s', interface_ip, 0)
+        logger.debug('Binding UDP socket to %s:%s', interface_ip, 0)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as bc_sock:
             bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             bc_sock.bind((interface_ip, 0))
@@ -193,16 +195,16 @@ def _connect(interface_ip=''):
             tries = 0
             while True:
                 if tries == 10:
-                    logging.warning('Connecting to inverter is taking a long '
+                    logger.warning('Connecting to inverter is taking a long '
                             'time, is it reachable?')
-                logging.debug('Broadcasting server existence')
+                logger.debug('Broadcasting server existence')
                 bc_sock.sendto(message, ('<broadcast>', 1300))
                 try:
                     conn, addr = server.accept()
                 except socket.timeout:
                     tries += 1
                 else:
-                    logging.info('Connected with inverter on address %s', addr)
+                    logger.info('Connected with inverter on address %s', addr)
                     return conn, addr
 
 def _construct_request(identifier, payload):
@@ -229,7 +231,7 @@ if __name__ == '__main__':
     #parser = argparse.ArgumentParser(description='Monitoring tool for '
     #'SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
     import time
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     with Inverter() as inverter:
         while True:
             inverter.request_values()

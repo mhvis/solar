@@ -8,6 +8,9 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import logging
+import sys
+
+logger = logging.getLogger(__name__)
 
 class System:
     """Provides methods for direct uploading to PVOutput for set system."""
@@ -32,7 +35,7 @@ class System:
     # Could add methods like 'get_status'
 
     def __make_request(self, url, data):
-        logging.debug('Making request: %s, %s', url, data)
+        logger.debug('Making request: %s, %s', url, data)
         data = urllib.parse.urlencode(data).encode('ascii')
         req = urllib.request.Request(url, data)
         req.add_header('X-Pvoutput-Apikey', self.api_key)
@@ -40,12 +43,12 @@ class System:
         try:
             f = urllib.request.urlopen(req)
         except urllib.error.HTTPError as e:
-            logging.error('Upload failed: %s', e.read().decode())
+            logger.error('Upload failed: %s', e.read().decode())
         except urllib.error.URLError as e:
-            logging.error('Upload failed: %s', e)
+            logger.error('Upload failed: %s', e)
         else:
             with f:
-                logging.debug('Response: %s', f.read().decode())
+                logger.debug('Response: %s', f.read().decode())
 
     def __str__(self):
         return self.system_id.__str__()
@@ -64,6 +67,7 @@ class System:
 if __name__ == '__main__':
     import time
     import configparser
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     data = {
         'd': time.strftime('%Y%m%d'),
         't': time.strftime('%H:%M'),
@@ -75,7 +79,7 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read_file(open('samil_upload.ini'))
     # Assumes a default API key and system ID
-    api_key = config['DEFAULTS']['API key']
-    system_id = config['DEFAULTS']['System ID']
+    api_key = config['DEFAULT']['API key']
+    system_id = config['DEFAULT']['System ID']
     pv = System(api_key, system_id)
     pv.add_status(data)

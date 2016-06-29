@@ -16,6 +16,9 @@ import time
 import configparser
 import logging
 import os.path
+import sys
+
+logger = logging.getLogger(__name__)
 
 def applies(inverter, section):
     """Returns whether the inverter applies for given configuration section."""
@@ -46,10 +49,10 @@ def upload(pv, inverters, scheduler, timestamp, boundary):
             'v5': sum(value['internal_temp'] for value in values) / len(values),
             'v6': sum(value['grid_voltage'] for value in values) / len(values)
         }
-        logging.info('Uploading: %s', data)
+        logger.info('Uploading: %s', data)
         pv.add_status(data)
     else:
-        logging.info('Not uploading, no inverter has operating mode normal')
+        logger.info('Not uploading, no inverter has operating mode normal')
     sched_args = (pv, inverters, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
@@ -60,7 +63,7 @@ def main(config, Inverter):
     if config.has_option('DEFAULT', 'Interface IP'):
         interface_ip = config['DEFAULT']['Interface IP']
     sections = config.sections() if config.sections() else ['DEFAULT']
-    logging.info('Configuration sections: %s', sections)
+    logger.info('Configuration sections: %s', sections)
 
     # Context manager to gracefully close sockets
     with exitstack.ExitStack() as stack:
@@ -73,7 +76,7 @@ def main(config, Inverter):
             for section_name in sections:
                 if applies(inverter, config[section_name]):
                     section_inverter.append((config[section_name], inverter))
-                    logging.info('Matched inverter %s with configuration %s',
+                    logger.info('Matched inverter %s with configuration %s',
                             inverter, section_name)
                 else:
                     new_sections.append(section_name)
@@ -87,7 +90,7 @@ def main(config, Inverter):
                 systems[pv] = (section.getint('Status interval') * 60, [inverter])
             else:
                 systems[pv][1].append(inverter)
-        logging.info('Final systems: %s', systems)
+        logger.info('Final systems: %s', systems)
 
         # Schedule uploads
         scheduler = sched.scheduler(time.time, time.sleep)
@@ -95,13 +98,13 @@ def main(config, Inverter):
             timestamp = next_timestamp(boundary)
             sched_args = (pv, inverters, scheduler, timestamp, boundary)
             scheduler.enterabs(timestamp, 1, upload, sched_args)
-        logging.info('Scheduled first upload')
+        logger.info('Scheduled first upload')
 
         # Run scheduler
         scheduler.run()
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     config = configparser.ConfigParser()
     config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
     config.read_file(open(config_file))
