@@ -13,25 +13,27 @@
 
 # Do NOT "set -e"
 
+NAME=samil_upload.py
+SERVICE=samilupload
+
+# Configuration
+DAEMON=/home/pi/solar/$NAME
+DAEMON_ARGS=""
+LOG=/dev/null
+# Uncomment the line below if you want to store logs
+#LOG=/var/log/$SERVICE
+
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Samil PVOutput uploader"
-NAME=samil_upload.py
-DAEMON=/home/pi/solar/$NAME
-DAEMON_ARGS=""
-SERVICE=samilupload
 PIDFILE=/var/run/$SERVICE.pid
 SCRIPTNAME=/etc/init.d/$SERVICE
-LOG=/var/log/$SERVICE
 
 # Exit if the package is not installed
-[ -x "$DAEMON" ] || exit 0
+[ -x "$DAEMON" ] || { echo "Script $DAEMON not found"; exit 0; }
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$SERVICE ] && . /etc/default/$SERVICE
-
-# Load the VERBOSE setting and other rcS variables
-. /lib/init/vars.sh
 
 # Define LSB log_* functions.
 # Depend on lsb-base (>= 3.2-14) to ensure that this file is present
@@ -52,7 +54,7 @@ do_start()
 		|| return 1
 	start-stop-daemon --start --background --no-close --quiet \
 		--pidfile $PIDFILE --make-pidfile --exec $DAEMON -- \
-		$DAEMON_ARGS > $LOG 2>&1 \
+		$DAEMON_ARGS >> $LOG 2>&1 \
 		|| return 2
 	# Add code here, if necessary, that waits for the process to be ready
 	# to handle requests from services started subsequently which depend
@@ -100,19 +102,19 @@ do_reload() {
 
 case "$1" in
   start)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME"
+	log_daemon_msg "Starting $DESC" "$NAME"
 	do_start
 	case "$?" in
-		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		0|1) log_end_msg 0 ;;
+		2) log_end_msg 1 ;;
 	esac
 	;;
   stop)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+	log_daemon_msg "Stopping $DESC" "$NAME"
 	do_stop
 	case "$?" in
-		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		0|1) log_end_msg 0 ;;
+		2) log_end_msg 1 ;;
 	esac
 	;;
   status)
