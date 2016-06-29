@@ -10,6 +10,7 @@
 ### END INIT INFO
 
 # Author: Maarten Visscher <mail@maartenvisscher.nl>
+# This is a modified version of /etc/init.d/skeleton
 
 # Do NOT "set -e"
 
