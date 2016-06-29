@@ -11,15 +11,15 @@ I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
 the same network.
 * Ensure Python 3 is installed (needed for this script).
 * Obtain your PVOutput.org API key and system ID and put this in
-`samil_upload.ini`. If you have multiple inverters, see the section on [multiple
-inverters configuration](#multiple-inverters-configuration).
+`samil_upload.ini`. If you have multiple inverters, see the section on
+[multiple inverters configuration](#multiple-inverters-configuration).
 * Run `samil_upload.py` (for Linux: `./samil_upload.py`).
 
 If you are using a Linux distro with SysV (`/etc/init.d`) like the Raspberry Pi
-you can use a service script to run it automatically on startup. [See here
-](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you could also
-make a `cron` entry: run `crontab -e` and add `@reboot /path/to/samil_upload.py`
-to the file.
+you can use a service script to run it automatically on startup.
+[See here](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you
+could also make a `cron` entry: run `crontab -e` and add
+`@reboot /path/to/samil_upload.py` to the file.
 
 If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
