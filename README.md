@@ -18,8 +18,8 @@ the same network.
 If you are using a Linux distro with SysV (`/etc/init.d`) like the Raspberry Pi
 you can use a service script to run it automatically on startup.
 [See here](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you
-could also make a `cron` entry: run `crontab -e` and add
-`@reboot /path/to/samil_upload.py` to the file.
+could also make a cron entry: run `crontab -e` and add
+`@reboot /path/to/samil_upload.py` to the cron file.
 
 If your system has multiple network interfaces, you can optionally force the
 script to use the correct one by specifying the system's IP address on the
