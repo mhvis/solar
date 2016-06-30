@@ -13,20 +13,19 @@
 # This is a modified version of /etc/init.d/skeleton
 # Do NOT "set -e"
 
-# Constants, configuration is below
+# Configuration
 NAME=samil_upload.py
 SERVICE=samilupload
+DAEMON=/home/pi/solar/$NAME # Modify this to point to the right directory
+DAEMON_ARGS=""
+LOG=/dev/null
+#LOG=/var/log/$SERVICE # Uncomment this if you want to store logs
+
+# Constants
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Samil PVOutput uploader"
 PIDFILE=/var/run/$SERVICE.pid
 SCRIPTNAME=/etc/init.d/$SERVICE
-
-# Configuration
-DAEMON=/home/pi/solar/$NAME
-DAEMON_ARGS=""
-LOG=/dev/null
-# Uncomment the line below if you want to store logs
-#LOG=/var/log/$SERVICE
 
 
 # Exit if the package is not installed
