@@ -11,11 +11,15 @@
 
 # Author: Maarten Visscher <mail@maartenvisscher.nl>
 # This is a modified version of /etc/init.d/skeleton
-
 # Do NOT "set -e"
 
+# Constants, configuration is below
 NAME=samil_upload.py
 SERVICE=samilupload
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="Samil PVOutput uploader"
+PIDFILE=/var/run/$SERVICE.pid
+SCRIPTNAME=/etc/init.d/$SERVICE
 
 # Configuration
 DAEMON=/home/pi/solar/$NAME
@@ -24,11 +28,6 @@ LOG=/dev/null
 # Uncomment the line below if you want to store logs
 #LOG=/var/log/$SERVICE
 
-# PATH should only include /usr/* if it runs after the mountnfs.sh script
-PATH=/sbin:/usr/sbin:/bin:/usr/bin
-DESC="Samil PVOutput uploader"
-PIDFILE=/var/run/$SERVICE.pid
-SCRIPTNAME=/etc/init.d/$SERVICE
 
 # Exit if the package is not installed
 [ -x "$DAEMON" ] || { echo "Script $DAEMON not found"; exit 0; }
