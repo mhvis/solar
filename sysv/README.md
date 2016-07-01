@@ -2,8 +2,7 @@
 
 `samilupload` is a service script for `samil_upload.py`, for running it
 automatically on boot. There is also a more
-straightforward, less complex version in `samilupload2` by
-Christian Leyer.
+straightforward, less complex version in `samilupload2` by Christian Leyer.
 
 ## Usage
 
