@@ -1,15 +1,15 @@
 # SysV
 
 `samilupload` is a service script for `samil_upload.py`, for running it
-automatically on boot. There is also a more
-straightforward, less complex version in `samilupload2` by Christian Leyer.
+automatically on boot. There is also a more straightforward, less complex
+version in `samilupload2` by [Christian Leyer](https://github.com/chrleyer).
 
 ## Usage
 
 * Copy the service script to `/etc/init.d/`: `sudo cp samilupload /etc/init.d/`.
-* Modify the script configuration for your environment: `sudo nano /etc/init.d/samilupload`.
-You should update the `DAEMON` variable to point to the correct directory. You
-can optionally enable logging.
+* Modify the script configuration for your environment:
+`sudo nano /etc/init.d/samilupload`. You should update the `DAEMON` variable to
+point to the correct directory. You can optionally enable logging.
 * Enable automatic startup: `sudo update-rc.d samilupload defaults`.
 
 You can also manually control the daemon/script with `sudo service samilupload`
