@@ -1,8 +1,8 @@
 #!/bin/sh
 # chkconfig: 123456 90 10
-# Samil Inverter upload service to PVupload.org
+# Samil Inverter upload service to PVoutput.org
 # Init script for CentOS / RedHat systems
-# Last change: 01.07.2016
+# Last change: 17.07.2016
 # Author: Christian Leyer
 
 . /etc/init.d/functions
