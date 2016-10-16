@@ -114,5 +114,5 @@ if __name__ == '__main__':
         try:
             main(config)
         except socket.error as err:
-            logger.info('Error occurred, restarting app: %s', err)
-            time.sleep(10)
+            logger.info('Error occurred, restarting app in a minute: %s', err)
+            time.sleep(60)
