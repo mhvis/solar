@@ -113,6 +113,6 @@ if __name__ == '__main__':
     while True:
         try:
             main(config)
-        except socket.error as err:
+        except (socket.error, samil.ConnectionClosedException) as err:
             logger.info('Error occurred, restarting app in a minute: %s', err)
             time.sleep(60)
