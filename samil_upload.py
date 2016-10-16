@@ -56,7 +56,7 @@ def upload(pv, inverters, scheduler, timestamp, boundary):
     sched_args = (pv, inverters, scheduler, timestamp + boundary, boundary)
     scheduler.enterabs(timestamp + boundary, 1, upload, sched_args)
 
-def main(config, Inverter):
+def main(config):
     """Reads configuration, connects to inverters and schedules uploads."""
     # Read config
     interface_ip = ''
@@ -71,7 +71,7 @@ def main(config, Inverter):
         # Connect to inverters & match sections
         section_inverter = []
         while sections:
-            inverter = stack.enter_context(Inverter(interface_ip))
+            inverter = stack.enter_context(samil.Inverter(interface_ip))
             new_sections = []
             for section_name in sections:
                 if applies(inverter, config[section_name]):
@@ -108,4 +108,9 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
     config.read_file(open(config_file))
-    main(config, samil.Inverter)
+    # Restart on errors
+    while True:
+        try:
+            main(config)
+        except OSError as err:
+            logger.info('Error occurred, restarting app: %s', err)
