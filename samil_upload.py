@@ -109,9 +109,10 @@ if __name__ == '__main__':
     config_file = os.path.dirname(os.path.abspath(__file__)) + '/samil_upload.ini'
     config.read_file(open(config_file))
     # Restart on errors
+    import socket
     while True:
         try:
             main(config)
-        except OSError as err:
+        except socket.error as err:
             logger.info('Error occurred, restarting app: %s', err)
             time.sleep(10)

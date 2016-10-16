@@ -178,7 +178,7 @@ def _connect(interface_ip=''):
     logger.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         # For making rebinding directly possible
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((interface_ip, 1200))
         server.settimeout(5.0) # Timeout defines the time between broadcasts
         server.listen(5)
