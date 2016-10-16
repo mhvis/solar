@@ -114,3 +114,4 @@ if __name__ == '__main__':
             main(config)
         except OSError as err:
             logger.info('Error occurred, restarting app: %s', err)
+            time.sleep(10)
