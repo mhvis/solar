@@ -49,12 +49,12 @@ class Inverter:
         self.keep_alive.start()
     
     def __enter__(self):
-        if sock is not None:
+        if self.sock is not None:
             self.sock.__enter__()
         return self
     
     def __exit__(self, *args):
-        if sock is not None:
+        if self.sock is not None:
             self.sock.__exit__(*args)
 
     def request_model_info(self):
