@@ -1,8 +1,9 @@
-# Changelog
+# Change log
 
 ## 1.1 - 2016-10-16
 ### Added
 * App will try to reconnect when inverter connection is lost (instead of stopping)
+
 ### Fixes
 * Socket bug, issue #8
 
