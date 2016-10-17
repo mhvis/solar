@@ -151,7 +151,10 @@ class Inverter:
         """Makes a keep-alive request."""
         logger.debug('Keep alive')
         identifier = b'\x01\x09\x02', b'\x01\x0b'
-        self.__make_request(identifier, b'')
+        try:
+            self.__make_request(identifier, b'')
+        except Exception as err:
+            logger.warning('Error in keep alive thread: %s', err)
 
     def __str__(self):
         # Possibly also return model name/serial number
