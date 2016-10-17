@@ -70,17 +70,18 @@ def main(config):
 
         # Connect to inverters & match sections
         section_inverter = []
-        while sections:
-            inverter = stack.enter_context(samil.Inverter(interface_ip))
-            new_sections = []
-            for section_name in sections:
-                if applies(inverter, config[section_name]):
-                    section_inverter.append((config[section_name], inverter))
-                    logger.info('Matched inverter %s with configuration %s',
-                            inverter, section_name)
-                else:
-                    new_sections.append(section_name)
-            sections = new_sections
+        with samil.InverterListener(interface_ip) as listener:
+            while sections:
+                inverter = stack.enter_context(listener.connect())
+                new_sections = []
+                for section_name in sections:
+                    if applies(inverter, config[section_name]):
+                        section_inverter.append((config[section_name], inverter))
+                        logger.info('Matched inverter %s with configuration %s',
+                                inverter, section_name)
+                    else:
+                        new_sections.append(section_name)
+                sections = new_sections
 
         # Find equal PVOutput systems
         systems = dict()
