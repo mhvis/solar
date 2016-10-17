@@ -1,6 +1,6 @@
 # Change log
 
-## Unpublished - 2016-10-17
+## 1.2 - 2016-10-17
 ### Changes
 * More informative messages (for 'address in use' and thread errors)
 
