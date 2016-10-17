@@ -11,12 +11,78 @@ import threading
 import logging
 import argparse
 import sys
+import time
 
 logger = logging.getLogger(__name__)
 
 # Maximum time between packets (seconds float). If this time is reached a
 # keep-alive packet is sent.
 keep_alive_time = 10.0
+
+class InverterListener:
+    def __init__(self, interface_ip=''):
+        # Start server to listen for incoming connections
+        listen_port = 1200
+        logger.debug('Binding TCP socket to %s:%s', interface_ip, listen_port)
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        while True:
+            try:
+                self.server.bind((interface_ip, listen_port))
+            except socket.error as err:
+                if err.errno == 98:
+                    logger.warning('Listening address is already in use, '
+                            'waiting for it to be freed..')
+                    time.sleep(60)
+                else:
+                    raise err
+            else:
+                break
+        self.server.settimeout(5.0) # Timeout defines time between broadcasts
+        self.server.listen(5)
+        # Creating and binding broadcast socket
+        logger.debug('Binding UDP socket to %s:%s', interface_ip, 0)
+        self.bc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.bc_sock.bind((interface_ip, 0))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        # Stop listening server
+        self.server.close()
+        self.bc_sock.close()
+
+    def connect(self):
+        """Makes a connection to an inverter (the inverter that responds first).
+        Blocks while waiting for an incoming inverter connection. Will keep blocking
+        if no inverters respond.
+        
+        An instance of the Inverter class is returned.
+        
+        You can connect to multiple inverters by calling this function multiple
+        times (each subsequent call will make a connection to a new inverter)."""
+        logger.info('Searching for an inverter in the network')
+        # Broadcast packet identifier (header, end)
+        identifier = b'\x00\x40\x02', b'\x04\x3a'
+        payload = b'I AM SERVER'
+        message = _construct_request(identifier, payload)
+        # Looping to wait for incoming connections while sending broadcasts
+        tries = 0
+        while True:
+            if tries == 10:
+                logger.warning('Connecting to inverter is taking a long '
+                        'time, is it reachable?')
+            logger.debug('Broadcasting server existence')
+            self.bc_sock.sendto(message, ('<broadcast>', 1300))
+            try:
+                sock, addr = self.server.accept()
+            except socket.timeout:
+                tries += 1
+            else:
+                logger.info('Connected with inverter on address %s', addr)
+                return Inverter(sock, addr)
+
 
 class Inverter:
     """This class has all functionality. Making a new instance of this class
@@ -38,9 +104,9 @@ class Inverter:
     
     (The request methods are thread-safe.)"""
     
-    def __init__(self, interface_ip=''):
-        # Connect
-        self.sock, self.addr = _connect(interface_ip)
+    def __init__(self, sock, addr):
+        self.sock = sock
+        self.addr = addr
         # A lock to ensure a single message at a time
         self.lock = threading.Lock()
         # Start keep-alive sequence
@@ -127,7 +193,7 @@ class Inverter:
     def __make_request(self, identifier, payload):
         """Directly makes a request and returns the response."""
         if self.sock is None:
-            raise ConnectionClosedException('Connection was already closed')
+            raise socket.error(None, 'Connection is closed')
         # Acquire socket request lock
         with self.lock:
             # Cancel a (possibly) running keep-alive timer
@@ -137,7 +203,7 @@ class Inverter:
             data = self.sock.recv(1024)
             if len(data) == 0:
                 self.sock = None
-                raise ConnectionClosedException('Connection closed')
+                raise socket.error(None, 'Connection closed')
             response = _tear_down_response(data)
             logger.debug('Request: %s', request)
             logger.debug('Response: %s', response)
@@ -165,53 +231,6 @@ class Inverter:
         return self.addr[0]
 
 
-class ConnectionClosedException(Exception):
-    """Exception raised when the connection is closed or was already closed."""
-    pass
-
-def _connect(interface_ip=''):
-    """Makes a connection to an inverter (the inverter that responds first).
-    Blocks while waiting for an incoming inverter connection. Will keep blocking
-    if no inverters respond.
-    
-    A (socket, address)-tuple is returned.
-    
-    You can connect to multiple inverters by calling this function multiple
-    times (each subsequent call will make a connection to a new inverter)."""
-    logger.info('Searching for an inverter in the network')
-    # Initialization of the TCP server
-    logger.debug('Binding TCP socket to %s:%s', interface_ip, 1200)
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-        # For making rebinding directly possible
-        #server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((interface_ip, 1200))
-        server.settimeout(5.0) # Timeout defines the time between broadcasts
-        server.listen(5)
-        # Broadcast packet identifier (header, end)
-        identifier = b'\x00\x40\x02', b'\x04\x3a'
-        payload = b'I AM SERVER'
-        message = _construct_request(identifier, payload)
-        # Creating and binding broadcast socket
-        logger.debug('Binding UDP socket to %s:%s', interface_ip, 0)
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as bc_sock:
-            bc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            bc_sock.bind((interface_ip, 0))
-            # Looping to wait for incoming connections while sending broadcasts
-            tries = 0
-            while True:
-                if tries == 10:
-                    logger.warning('Connecting to inverter is taking a long '
-                            'time, is it reachable?')
-                logger.debug('Broadcasting server existence')
-                bc_sock.sendto(message, ('<broadcast>', 1300))
-                try:
-                    conn, addr = server.accept()
-                except socket.timeout:
-                    tries += 1
-                else:
-                    logger.info('Connected with inverter on address %s', addr)
-                    return conn, addr
-
 def _construct_request(identifier, payload):
     """Helper function to construct a request message to send."""
     # Start of each message
@@ -237,11 +256,12 @@ if __name__ == '__main__':
     #'SolarRiver TD, SolarRiver TL-D and SolarLake TL inverter series.')
     import time
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
-    with Inverter() as inverter:
-        while True:
-            inverter.request_values()
-            inverter.request_model_info()
-            inverter.request_unknown_1()
-            inverter.request_unknown_2()
-            inverter.request_unknown_3()
-            time.sleep(8)
+    with InverterListener() as listener:
+        with listener.connect() as inverter:
+            while True:
+                inverter.request_values()
+                inverter.request_model_info()
+                inverter.request_unknown_1()
+                inverter.request_unknown_2()
+                inverter.request_unknown_3()
+                time.sleep(8)
