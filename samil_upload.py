@@ -113,9 +113,6 @@ if __name__ == '__main__':
     while True:
         try:
             main(config)
-        except (OSError, socket.error, samil.ConnectionClosedException) as err:
-            if (err.errno == 98):
-                logger.info('Address not released yet from earlier run, waiting a minute..')
-            else:
-                logger.warning('Error occurred, restarting app in a minute: %s', err)
+        except socket.error as err:
+            logger.warning('Error occurred, restarting app in a minute: %s', err)
             time.sleep(60)

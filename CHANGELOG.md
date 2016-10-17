@@ -1,11 +1,12 @@
 # Change log
 
+## Unpublished
+### Fixes
+* Connecting to multiple inverters gave an error (9 bad file descriptor)
+
 ## 1.2 - 2016-10-17
 ### Changes
 * More informative messages (for 'address in use' and thread errors)
-
-### Fixes
-* App now restarts on OSError (instead of stopping)
 
 ## 1.1 - 2016-10-16
 ### Added

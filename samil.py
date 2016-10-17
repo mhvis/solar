@@ -257,11 +257,12 @@ if __name__ == '__main__':
     import time
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     with InverterListener() as listener:
-        with listener.connect() as inverter:
-            while True:
-                inverter.request_values()
-                inverter.request_model_info()
-                inverter.request_unknown_1()
-                inverter.request_unknown_2()
-                inverter.request_unknown_3()
-                time.sleep(8)
+        inverter = listener.connect()
+    with inverter:
+        while True:
+            inverter.request_values()
+            inverter.request_model_info()
+            inverter.request_unknown_1()
+            inverter.request_unknown_2()
+            inverter.request_unknown_3()
+            time.sleep(8)
