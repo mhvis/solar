@@ -25,19 +25,8 @@ class InverterListener:
         listen_port = 1200
         logger.debug('Binding TCP socket to %s:%s', interface_ip, listen_port)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        while True:
-            try:
-                self.server.bind((interface_ip, listen_port))
-            except socket.error as err:
-                if err.errno == 98:
-                    logger.warning('Listening address is already in use, '
-                            'waiting for it to be freed..\nThis is normal '
-                            'when you just restarted this app')
-                    time.sleep(60)
-                else:
-                    raise err
-            else:
-                break
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.bind((interface_ip, listen_port))
         self.server.settimeout(5.0) # Timeout defines time between broadcasts
         self.server.listen(5)
         # Creating and binding broadcast socket
