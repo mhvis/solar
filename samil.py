@@ -108,9 +108,8 @@ class Inverter:
         return self
     
     def __exit__(self, *args):
-        if self.sock is not None:
-            self.sock.shutdown(socket.SHUT_RDWR)
-            self.sock.close()
+        self.sock.shutdown(socket.SHUT_RDWR)
+        self.sock.close()
 
     def request_model_info(self):
         """Requests model information like the type, software version, and
@@ -126,7 +125,8 @@ class Inverter:
         """Requests current values which are returned as a dictionary."""
         identifier = b'\x01\x02\x02', b'\x01\x04'
         # Make request and receive response
-        header, payload, end = self.__make_request(identifier, b'')
+        header, payload, end = self.__make_request(identifier, b'',
+                b'\x04\x80\x00')
         # Separate each short value
         values = [payload[i:i+2] for i in range(0, len(payload) - 4, 2)]
         values += [payload[-4:]]
@@ -179,21 +179,31 @@ class Inverter:
         response = self.__make_request(identifier, b'')
         return response
     
-    def __make_request(self, identifier, payload):
+    def __make_request(self, identifier, payload, response_id=None):
         """Directly makes a request and returns the response."""
-        if self.sock is None:
-            raise socket.error(None, 'Connection is closed')
         # Acquire socket request lock
         with self.lock:
             # Cancel a (possibly) running keep-alive timer
             self.keep_alive.cancel()
+            # Receive non-blocking, to clear the receive buffer
+            try:
+                self.sock.recv(1024, socket.MSG_DONTWAIT)
+            except socket.error as err:
+                if err.errno != 11:
+                    raise err
+            else:
+                logger.info('Receive buffer was not empty before a request')
             request = _construct_request(identifier, payload)
             self.sock.send(request)
-            data = self.sock.recv(1024)
-            if len(data) == 0:
-                self.sock = None
-                raise socket.error(None, 'Connection closed')
-            response = _tear_down_response(data)
+            # Receive message, possibly retrying when wrong message arrived
+            while True:
+                data = self.sock.recv(1024)
+                response = _tear_down_response(data)
+                if not response_id or response_id == response[0]:
+                    break
+                else:
+                    logger.info('Received unexpected message, waiting for a '
+                            'new one')
             logger.debug('Request: %s', request)
             logger.debug('Response: %s', response)
             # Set keep-alive timer
