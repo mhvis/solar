@@ -31,7 +31,8 @@ class InverterListener:
             except socket.error as err:
                 if err.errno == 98:
                     logger.warning('Listening address is already in use, '
-                            'waiting for it to be freed..')
+                            'waiting for it to be freed..\nThis is normal '
+                            'when you just restarted this app')
                     time.sleep(60)
                 else:
                     raise err
@@ -115,13 +116,12 @@ class Inverter:
         self.keep_alive.start()
     
     def __enter__(self):
-        if self.sock is not None:
-            self.sock.__enter__()
         return self
     
     def __exit__(self, *args):
         if self.sock is not None:
-            self.sock.__exit__(*args)
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
 
     def request_model_info(self):
         """Requests model information like the type, software version, and
