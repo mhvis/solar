@@ -125,8 +125,7 @@ class Inverter:
         """Requests current values which are returned as a dictionary."""
         identifier = b'\x01\x02\x02', b'\x01\x04'
         # Make request and receive response
-        header, payload, end = self.__make_request(identifier, b'',
-                b'\x04\x80\x00')
+        header, payload, end = self.__make_request(identifier, b'')
         # Separate each short value
         values = [payload[i:i+2] for i in range(0, len(payload) - 4, 2)]
         values += [payload[-4:]]
