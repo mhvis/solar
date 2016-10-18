@@ -114,6 +114,6 @@ if __name__ == '__main__':
     while True:
         try:
             main(config)
-        except socket.error as err:
+        except (socket.error, IndexError) as err:
             logger.warning('Error occurred, restarting app in a minute: %s', err)
             time.sleep(60)
