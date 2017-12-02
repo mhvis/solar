@@ -5,6 +5,9 @@ series, SolarRiver TL-D series, SolarLake TL series.
 
 I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
 
+If you have a SolarLake TL-PM series inverter, check out this fork! ->
+[semonet/solar](https://github.com/semonet/solar)
+
 ## Usage
 
 * Ensure both the system you're running this script on and the inverter are on
