@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 keep_alive_time = 10.0
 
 class InverterListener:
+    """This class lets you connect to new inverters."""
+    
     def __init__(self, interface_ip=''):
         # Start server to listen for incoming connections
         listen_port = 1200
@@ -75,10 +77,9 @@ class InverterListener:
 
 
 class Inverter:
-    """This class has all functionality. Making a new instance of this class
-    will search the network for an inverter and connect to it. The
-    initialization blocks until the connection is made. If there is no inverter,
-    the call will keep on blocking.
+    """This class provides methods for making requests to an inverter. You can
+    get a new instance of this class by making a new inverter connection. This
+    can be done using the InverterListener class.
     
     When the connection is made you can use the methods to make data requests to
     the inverter. All request methods block while waiting for the answer (for me
@@ -86,11 +87,6 @@ class Inverter:
     
     When the connection is lost an exception is raised the next time a request
     is made.
-    
-    Connecting to multiple inverters is possible by making multiple instances of
-    this class. Each next instance will connect to a different inverter in the
-    network. When there is no inverter available anymore, the next instance
-    initialization will keep on blocking.
     
     (The request methods are thread-safe.)"""
     
