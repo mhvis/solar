@@ -8,104 +8,55 @@ I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
 If you have a SolarLake TL-PM series inverter, check out this fork! ->
 [semonet/solar](https://github.com/semonet/solar)
 
+This is a new version, the old version can be found here.
+
+## Requirements
+
+* Python 3
+* Inverter needs to be on the same network as the system running the script
+* For PVOutput: system ID and API key 
+
 ## Usage
 
-* Ensure both the system you're running this script on and the inverter are on
-the same network.
-* Ensure Python 3 is installed (needed for this script).
-* Obtain your PVOutput.org API key and system ID and put this in
-`samil_upload.ini`. If you have multiple inverters, see the section on
-[multiple inverters configuration](#multiple-inverters-configuration).
-* Run `samil_upload.py` (for Linux: `./samil_upload.py`).
-
-If you are using a Linux distro with SysV (`/etc/init.d`) like the Raspberry Pi
-you can use a service script to run it automatically on startup.
-[See here](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you
-could also make a cron entry: run `crontab -e` and add
-`@reboot /path/to/samil_upload.py` to the cron file.
-
-If your system has multiple network interfaces, you can optionally force the
-script to use the correct one by specifying the system's IP address on the
-network in `samil_upload.ini` (should not be needed).
-
-## Multiple inverters configuration
-
-For using multiple inverters, you add a section for each inverter, in which you
-can specify the inverter serial number or IP address. The settings in the
-DEFAULT section apply to all inverters (useful for the API key). These can also
-be overridden in an inverter section. When a new inverter is found in the
-network, it is matched to all sections with equal and/or
-empty serial number and IP address. A section will only match one inverter,
-which is the first inverter found in the network that applies to the section
-filter. Thus if you have multiple sections without a specified serial number and
-IP address, the first inverter found is matched to all these sections.
-
-Here are some examples:
-
-### Single inverter
-
 ```
-[DEFAULT]
-# Number of minutes between uploads
-Status interval = 5
-# Interface to bind to, optional
-Interface IP =
+$ python3 solar.py -h
+usage: solar.py [-h] [-i INTERFACE] [-q] [--inverters NUM]
+                [--only-serial [SERIAL_NUMBER [SERIAL_NUMBER ...]]]
+                [--only-ip [IP [IP ...]]] [--pvoutput-system PVOUTPUT_SYSTEM]
+                [--pvoutput-key PVOUTPUT_KEY] [--version]
 
-API key = YourApiKey
-System ID = YourSystemId
+Retrieve Samil Power inverter data and optionally upload to PVOutput
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        bind interface IP (default: all interfaces)
+  -q, --quiet           only display error messages
+  --inverters NUM       number of inverters (default: 1)
+  --only-serial [SERIAL_NUMBER [SERIAL_NUMBER ...]]
+                        only match inverters with one of the given serial
+                        numbers
+  --only-ip [IP [IP ...]]
+                        only match inverters with one of the given IPs
+  --pvoutput-system PVOUTPUT_SYSTEM
+                        PVOutput system ID
+  --pvoutput-key PVOUTPUT_KEY
+                        PVOutput system API key
+  --version             show program's version number and exit
 ```
 
-### Two inverters, same PVOutput system, by serial number
-
-**Note: filtering by serial number is not yet implemented!** Use IP address
-instead.
-
-When multiple sections point to the same PVOutput system ID, the data of each
-section is combined before it is send to PVOutput. The energy data is
-accumulated and all other data (temperature, voltage) is averaged.
-
-When the serial number is ommited, this configuration will behave differently:
-the first inverter that is connected will match both systems (since both systems
-don't have serial number or IP address specified). Therefore only the data of
-that first inverter is combined (doubled) and sent to PVOutput.
+To upload every 5 or 15 minutes to PVOutput, call the script periodically using a Linux cronjob or similar mechanism.
+Crontab example:
 
 ```
-[DEFAULT]
-Status interval = 5
-
-API key = AnkieIsLiev
-System ID = 44819
-
-[System1]
-Serial number = DWB8080SDF
-
-[System2]
-Serial number = HELLO
+5 * * * *  /usr/bin/python3 /path/to/solar.py -s 12345 -k APIKEYHERE
 ```
-
-### Two inverters, separate PVOutput system, by IP address
-
-```
-[DEFAULT]
-Status interval = 5
-
-API key = NoortjeOok
-
-[System1]
-System ID = 12345
-IP address = 192.168.80.30
-
-[System2]
-System ID = 12346
-IP address = 192.168.80.31
-```
-
-It is also possible to add more inverters, have separate API keys or use
-different status intervals. If anything is unclear or you need more help setting
-up your systems, make an [issue](https://github.com/mhvis/solar/issues) or
-[contact me](mailto:mail@maartenvisscher.nl).
 
 ## Info
 
-The protocol used by these inverters is (somewhat) described
+The protocol used by these inverters is described
 [here](https://github.com/mhvis/solar/wiki/Communication-protocol).
+
+## License
+
+MIT
