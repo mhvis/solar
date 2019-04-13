@@ -1,7 +1,7 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from .samil import _checksum, _samil_request, _samil_response, _value_of, DecimalStatusType
+from solar.samil import _checksum, _samil_request, _samil_response, _value_of, DecimalStatusType, _samil_string
 
 
 class MessageTestCase(TestCase):
@@ -39,3 +39,10 @@ class DecimalStatusTypeTestCase(TestCase):
     def test_get_value_none(self):
         status_type = DecimalStatusType(0x37)
         self.assertIsNone(status_type.get_value(self.status_format, self.status_message))
+
+
+class StringDecodeTestCase(TestCase):
+    def test_samil_string(self):
+        expect = "V1"
+        actual = _samil_string(b' V1 \x00 ')
+        self.assertEqual(expect, actual)

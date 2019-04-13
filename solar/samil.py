@@ -90,6 +90,11 @@ status_types = {
 }
 
 
+def _samil_string(val):
+    """Decodes a possibly null terminated byte array to a string using ASCII and strips whitespace"""
+    return val.partition(b'\x00')[0].decode('ascii').strip()
+
+
 class Inverter:
     """This class provides methods for making requests to an inverter. Use InverterListener to open a connection to a
     new inverter. The request methods are synchronous and return the response. When the connection is lost an exception
@@ -112,8 +117,25 @@ class Inverter:
     def model(self):
         """Model information like the type, software version, and inverter serial number"""
         ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83\x00')
-        # TODO: format a nice return value
-        return payload
+        device_types = {
+            '1': 'Single-phase inverter',
+            '2': 'Three-phase inverter',
+            '3': 'SolarEnvi Monitor',
+            '4': 'R-phase inverter of the three combined single-phase ones',
+            '5': 'S-phase inverter of the three combined single-phase ones',
+            '6': 'T-phase inverter of the three combined single-phase ones',
+        }
+        return {
+            'device_type': device_types[_samil_string(payload[0:1])],
+            'va_rating': _samil_string(payload[1:7]),
+            'firmware_version': _samil_string(payload[7:12]),
+            'model_name': _samil_string(payload[12:28]),
+            'manufacturer': _samil_string(payload[28:44]),
+            'serial_number': _samil_string(payload[44:60]),
+            'communication_version': _samil_string(payload[60:65]),
+            'other_version': _samil_string(payload[65:70]),
+            'general': _samil_string(payload[70:71]),
+        }
 
     def status(self):
         """Status data like voltage, current, energy and temperature"""
@@ -157,10 +179,12 @@ class Inverter:
 
     def _send(self, identifier, payload):
         message = _samil_request(identifier, payload)
+        logging.debug('Sending %s', message.hex())
         self.sock.send(message)
 
     def _receive(self):
         message = self.sock.recv(4096)
+        logging.debug('Received %s', message.hex())
         return _samil_response(message)
 
 

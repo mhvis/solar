@@ -1,3 +1,3 @@
-from .cli import main
+from solar.cli import main
 
 main()
