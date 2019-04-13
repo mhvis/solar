@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from libpvoutput import pvoutput_add_status
+from .samil import InverterListener
 
 parser = argparse.ArgumentParser(description='Retrieve Samil Power inverter data and optionally upload to PVOutput')
 parser.add_argument('-i', '--interface', help='bind interface IP (default: all interfaces)')
@@ -23,4 +23,9 @@ args = parser.parse_args()
 # Logging
 logging.basicConfig(level=logging.ERROR if args.quiet else logging.INFO, format="%(level):%(message)s")
 
-pvoutput_add_status
+
+with InverterListener() as listener:
+    inverter = listener.accept_inverter()
+    with inverter:
+        print(inverter.model())
+        print(inverter.status())
