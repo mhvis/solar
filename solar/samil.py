@@ -116,7 +116,7 @@ class Inverter:
 
     def model(self):
         """Model information like the type, software version, and inverter serial number"""
-        ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83\x00')
+        ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83')
         device_types = {
             '1': 'Single-phase inverter',
             '2': 'Three-phase inverter',
@@ -142,7 +142,7 @@ class Inverter:
         if not self._status_format:
             self.status_format()
 
-        ident, payload = self._send_receive(b'\x01\x02\x02', b'', b'\x01\x82\x00')
+        ident, payload = self._send_receive(b'\x01\x02\x02', b'', b'\x01\x82')
 
         # Payload should be twice the size of the status format
         if 2 * len(self._status_format) != len(payload):
@@ -160,22 +160,25 @@ class Inverter:
     def status_format(self):
         """Requests the format used for the status data message from the inverter, see the protocol information for
         details"""
-        ident, payload = self._send_receive(b'\x01\x00\x02', b'', b'\x01\x80\x00')
+        ident, payload = self._send_receive(b'\x01\x00\x02', b'', b'\x01\x80')
         self._status_format = payload
         return payload
 
     def history(self, start, end):
         raise NotImplementedError('Not yet implemented')
 
-    def _send_receive(self, identifier, payload, expected_response_id=None):
-        """Send/receive pair utility method, if expected_response_id is given this value is compared with the identifier
-         of the actual response and a warning is printed if they are not equal"""
+    def _send_receive(self, identifier, payload, response_identifier=None):
+        """Send/receive pair utility method, if response_identifier is given this value is compared with the identifier
+        of the actual response and messages that have a wrong identifier are ignored. The comparison is done using
+        startswith."""
         self._send(identifier, payload)
-        response_id, response_payload = self._receive()
-        if expected_response_id and response_id != expected_response_id:
-            logging.warning('Unexpected response identifier %s for request %s with payload %s',
-                            response_id.hex(), identifier.hex(), response_payload.hex())
-        return response_id, response_payload
+        response_id_actual, response_payload = self._receive()
+        if response_identifier:
+            while not response_id_actual.startswith(response_identifier):
+                logging.warning('Unexpected response (%s, %s) for request %s, retrying',
+                                response_id_actual.hex(), response_payload.hex(), identifier.hex())
+                response_id_actual, response_payload = self._receive()
+        return response_id_actual, response_payload
 
     def _send(self, identifier, payload):
         message = _samil_request(identifier, payload)
