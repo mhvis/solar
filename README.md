@@ -18,31 +18,39 @@ This is a new version, the old version can be found here.
 
 ## Usage
 
+To test, run the program without arguments, then it should print data of the first inverter that it finds.
 ```
-$ python3 solar.py -h
-usage: solar.py [-h] [-i INTERFACE] [-q] [--inverters NUM]
-                [--only-serial [SERIAL_NUMBER [SERIAL_NUMBER ...]]]
-                [--only-ip [IP [IP ...]]] [--pvoutput-system PVOUTPUT_SYSTEM]
-                [--pvoutput-key PVOUTPUT_KEY] [--version]
+$ python3 -m solar
+```
+
+For full usage, see the help parameter.
+
+```
+$ python3 -m solar -h
+usage: __main__.py [-h] [--version] [-q] [-v] [-i INTERFACE] [-n NUM]
+                   [--only-serial [SERIAL_NUMBER [SERIAL_NUMBER ...]]]
+                   [--only-ip [IP [IP ...]]] [-s SYSTEM] [-k API_KEY]
 
 Retrieve Samil Power inverter data and optionally upload to PVOutput
 
 optional arguments:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  -q, --quiet           only display error messages
+  -v, --verbose         display debug messages
   -i INTERFACE, --interface INTERFACE
                         bind interface IP (default: all interfaces)
-  -q, --quiet           only display error messages
-  --inverters NUM       number of inverters (default: 1)
+  -n NUM, --inverters NUM
+                        number of inverters (default: 1)
   --only-serial [SERIAL_NUMBER [SERIAL_NUMBER ...]]
                         only match inverters with one of the given serial
                         numbers
   --only-ip [IP [IP ...]]
                         only match inverters with one of the given IPs
-  --pvoutput-system PVOUTPUT_SYSTEM
+  -s SYSTEM, --pvoutput-system SYSTEM
                         PVOutput system ID
-  --pvoutput-key PVOUTPUT_KEY
+  -k API_KEY, --pvoutput-key API_KEY
                         PVOutput system API key
-  --version             show program's version number and exit
 ```
 
 To upload every 5 or 15 minutes to PVOutput, call the script periodically using a Linux cronjob or similar mechanism.
