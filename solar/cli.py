@@ -1,5 +1,6 @@
 import argparse
 import logging
+from pprint import pprint
 
 from solar import InverterListener
 
@@ -35,5 +36,5 @@ def main():
     with InverterListener() as listener:
         inverter = listener.accept_inverter()
         with inverter:
-            print(inverter.model())
-            print(inverter.status())
+            pprint(inverter.model())
+            pprint(inverter.status())

@@ -57,36 +57,85 @@ def _value_of(type_id, status_format, status_payload):
     return status_payload[idx * 2:idx * 2 + 2]
 
 
-class DecimalStatusType(BaseStatusType):
-    """Status type that has a decimal value"""
-
-    def __init__(self, *type_ids, signed=False, scale=0):
+class IntStatusType(BaseStatusType):
+    def __init__(self, *type_ids, signed=False):
         """Type ID is the identifier of this type that will appear in the status format. Supplying more IDs will
-        concatenate the value bytes to form a larger integer. Signed indicates if the status value is signed. Scale is
-        applied by multiplying the result with 10^scale"""
+        concatenate the value bytes to form a larger integer. Signed indicates if the status value is signed."""
         self.type_ids = type_ids
         self.signed = signed
-        self.scale = scale
 
     def get_value(self, status_format, status_payload):
         values = [_value_of(type_id, status_format, status_payload) for type_id in self.type_ids]
         if None in values:
             return None
         value_sequence = b''.join(values)
-        int_val = int.from_bytes(value_sequence, byteorder='big', signed=self.signed)
-        dec_val = Decimal(int_val)
-        return dec_val.scaleb(self.scale)
+        return int.from_bytes(value_sequence, byteorder='big', signed=self.signed)
 
 
-class OperatingModeStatusType(BaseStatusType):
+class DecimalStatusType(IntStatusType):
+    """Status type that has a decimal value"""
+
+    def __init__(self, *args, scale=0, **kwargs):
+        """Scale is applied by multiplying the result with 10^scale. See IntStatusType for the other arguments"""
+        super().__init__(*args, **kwargs)
+        self.scale = scale
 
     def get_value(self, status_format, status_payload):
-        pass
+        int_val = super().get_value(status_format, status_payload)
+        if int_val is None:
+            return None
+        return Decimal(int_val).scaleb(self.scale)
+
+
+class OperatingModeStatusType(IntStatusType):
+
+    def __init__(self):
+        super().__init__(0x0c)
+
+    def get_value(self, status_format, status_payload):
+        int_val = super().get_value(status_format, status_payload)
+        operating_modes = {0: 'Wait', 1: 'Normal', 2: 'Fault', 3: 'Permanent fault', 4: 'Check', 5: 'PV power off'}
+        return operating_modes[int_val]
+
+
+class OneOfStatusType(BaseStatusType):
+    """Returns the value of the first concrete status type value that is not None. Can be used if there are multiple
+    type IDs that refer to the same status type and are mutually exclusive."""
+
+    def __init__(self, *status_types):
+        self.status_types = status_types
+
+    def get_value(self, status_format, status_payload):
+        for status_type in self.status_types:
+            val = status_type.get_value(status_format, status_payload)
+            if val is not None:
+                return val
+        return None
 
 
 status_types = {
-    'internal_temperature': DecimalStatusType(0x00, signed=True, scale=-1),  # in degrees Celcius
+    'internal_temperature': DecimalStatusType(0x00, signed=True, scale=-1),
     'pv1_voltage': DecimalStatusType(0x01, scale=-1),
+    'pv2_voltage': DecimalStatusType(0x02, scale=-1),
+    'pv1_current': DecimalStatusType(0x04, scale=-1),
+    'pv2_current': DecimalStatusType(0x05, scale=-1),
+    'energy_total': OneOfStatusType(DecimalStatusType(0x07, 0x08, scale=-1), DecimalStatusType(0x35, 0x36, scale=-1)),
+    'total_operation_time': IntStatusType(0x09, 0x0a),
+    'output_power': OneOfStatusType(IntStatusType(0x0b), IntStatusType(0x34)),
+    'operating_mode': OperatingModeStatusType(),
+    'energy_today': DecimalStatusType(0x11, scale=-2),
+    'pv1_input_power': IntStatusType(0x27),
+    'pv2_input_power': IntStatusType(0x28),
+    'heatsink_temperature': DecimalStatusType(0x2f, signed=True, scale=-1),
+    'grid_current': DecimalStatusType(0x31, scale=-1),
+    'grid_voltage': DecimalStatusType(0x32, scale=-1),
+    'grid_frequency': DecimalStatusType(0x33, scale=-2),
+    'grid_current_s_phase': DecimalStatusType(0x51, scale=-1),
+    'grid_voltage_s_phase': DecimalStatusType(0x52, scale=-1),
+    'grid_frequency_s_phase': DecimalStatusType(0x53, scale=-2),
+    'grid_current_t_phase': DecimalStatusType(0x71, scale=-1),
+    'grid_voltage_t_phase': DecimalStatusType(0x72, scale=-1),
+    'grid_frequency_t_phase': DecimalStatusType(0x73, scale=-2),
 }
 
 

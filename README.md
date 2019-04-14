@@ -57,6 +57,16 @@ Crontab example:
 The protocol used by these inverters is described
 [here](https://github.com/mhvis/solar/wiki/Communication-protocol).
 
+The following units are used for the status values:
+
+* Voltage in volts
+* Current in amperes
+* Energy in kilowatt hours
+* Power in watts
+* Temperature in degrees Celcius
+* Operating time in hours
+
+
 ## License
 
 MIT
