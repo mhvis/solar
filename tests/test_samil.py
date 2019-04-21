@@ -1,8 +1,8 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from solar.samil import _checksum, _samil_request, _samil_response, _value_of, DecimalStatusType, _samil_string, \
-    OperatingModeStatusType, OneOfStatusType
+from solar.samil import _checksum, _samil_request, _samil_response, DecimalStatusType, _samil_string, \
+    OperationModeStatusType, OneOfStatusType, BytesStatusType, IfPresentStatusType
 
 
 class MessageTestCase(TestCase):
@@ -24,14 +24,30 @@ class MessageTestCase(TestCase):
         self.assertEqual(b'\x55\x0c\x00\x00', payload)
 
 
-class DecimalStatusTypeTestCase(TestCase):
+class BytesStatusTypeTestCase(TestCase):
     status_format = bytes.fromhex("00 01 02 04 05 09 0a 0c 11 17 18 1b 1c 1d 1e 1f 20 21 22 27 28 31 32 33 34 35 36")
     status_message = bytes.fromhex("01 77 0b ac 0b e1 00 15 00 14 00 00 28 40 00 01 01 da 00 00 00 00 00 00 00 " +
                                    "00 00 00 00 00 00 00 00 00 00 00 00 00 02 8c 02 76 00 38 09 1b 13 86 04 fb " +
                                    "00 01 b1 cc")
 
-    def test_value_of(self):
-        self.assertEqual(b'\x28\x40', _value_of(0x0a, self.status_format, self.status_message))
+    def test_none(self):
+        t = BytesStatusType(0x03, 0x04)
+        self.assertIsNone(t.get_value(self.status_format, self.status_message))
+
+    def test_one(self):
+        t = BytesStatusType(0x01)
+        self.assertEqual(b'\x0b\xac', t.get_value(self.status_format, self.status_message))
+
+    def test_two_reverse(self):
+        t = BytesStatusType(0x02, 0x01)
+        self.assertEqual(b'\x0b\xe1\x0b\xac', t.get_value(self.status_format, self.status_message))
+
+
+class DecimalStatusTypeTestCase(TestCase):
+    status_format = bytes.fromhex("00 01 02 04 05 09 0a 0c 11 17 18 1b 1c 1d 1e 1f 20 21 22 27 28 31 32 33 34 35 36")
+    status_message = bytes.fromhex("01 77 0b ac 0b e1 00 15 00 14 00 00 28 40 00 01 01 da 00 00 00 00 00 00 00 " +
+                                   "00 00 00 00 00 00 00 00 00 00 00 00 00 02 8c 02 76 00 38 09 1b 13 86 04 fb " +
+                                   "00 01 b1 cc")
 
     def test_get_value(self):
         status_type = DecimalStatusType(0x35, 0x36, scale=-1)
@@ -49,12 +65,12 @@ class StringDecodeTestCase(TestCase):
         self.assertEqual(expect, actual)
 
 
-class OperatingModeStatusTypeTestCase(TestCase):
+class OperationModeStatusTypeTestCase(TestCase):
     def test_status_type(self):
         status_format = bytes.fromhex("00 01 02 04 05 09 0a 0c 11 17 18 1b 1c 1d 1e 1f 20 21 22 27 28 31 32 33 34")
         status_payload = bytes.fromhex("01 77 0b ac 0b e1 00 15 00 14 00 00 28 40 00 01 01 da 00 00 00 00 00 00 00 " +
                                        "00 00 00 00 00 00 00 00 00 00 00 00 00 02 8c 02 76 00 38 09 1b 13 86 04 fb")
-        om = OperatingModeStatusType()
+        om = OperationModeStatusType()
         self.assertEqual('Normal', om.get_value(status_format, status_payload))
 
 
@@ -74,3 +90,26 @@ class OneOfStatusTypeTestCase(TestCase):
     def test_two(self):
         status_type = OneOfStatusType(DecimalStatusType(0x04), DecimalStatusType(0x00))
         self.assertEqual(Decimal(21), status_type.get_value(self.status_format, self.status_payload))
+
+
+class IfPresentStatusTypeTestCase(TestCase):
+    def test_all(self):
+        status_format = bytes.fromhex("00")
+        status_payload = bytes.fromhex("12 34")
+        status_type = BytesStatusType(0x00)
+
+        # If present and actually present
+        t = IfPresentStatusType(0x00, True, status_type)
+        self.assertEqual(b'\x12\x34', t.get_value(status_format, status_payload))
+
+        # If present while not actually present
+        t = IfPresentStatusType(0x01, True, status_type)
+        self.assertIsNone(t.get_value(status_format, status_payload))
+
+        # If not present while actually present
+        t = IfPresentStatusType(0x00, False, status_type)
+        self.assertIsNone(t.get_value(status_format, status_payload))
+
+        # If not present and actually not present
+        t = IfPresentStatusType(0x01, False, status_type)
+        self.assertEqual(b'\x12\x34', t.get_value(status_format, status_payload))

@@ -1,4 +1,5 @@
 import logging
+from collections import OrderedDict
 from decimal import Decimal
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
 
@@ -6,7 +7,7 @@ from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_
 # For protocol information see https://github.com/mhvis/solar/wiki/Communication-protocol
 
 class InverterListener(socket):
-    """Listener for new inverter connections"""
+    """Listener for new inverter connections."""
 
     def __init__(self, interface_ip='', **kwargs):
         super().__init__(AF_INET, SOCK_STREAM, **kwargs)
@@ -14,18 +15,23 @@ class InverterListener(socket):
         # Allow socket bind conflicts
         self.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.bind((interface_ip, 1200))
-        self.settimeout(5.0)  # Timeout defines time between broadcasts
         self.listen(5)
 
-    def accept_inverter(self, max_tries=10):
-        """Broadcasts discovery message and returns an Inverter instance for the first inverter that responds"""
+    def accept_inverter(self, advertisements=10, interval=5.0):
+        """Advertises server and returns an Inverter instance for the first inverter that responds.
+
+        :param interval: time between each advertisement (inexact)
+        :param advertisements: number of advertisement messages to send
+        :return the inverter or None when no inverter was found
+        """
         message = _samil_request(b'\x00\x40\x02', b'I AM SERVER')
+        self.settimeout(interval)
         # Broadcast socket
         with socket(AF_INET, SOCK_DGRAM) as bc:
             bc.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
             bc.bind((self.interface_ip, 0))
 
-            for i in range(max_tries):
+            for i in range(advertisements):
                 logging.info('Searching for inverter')
                 bc.sendto(message, ('<broadcast>', 1300))
                 try:
@@ -35,41 +41,46 @@ class InverterListener(socket):
                 else:
                     logging.info('Connected with inverter on address %s', addr)
                     return Inverter(sock, addr)
-        raise ConnectionError('No inverter found')
+        return None
 
 
 # Inverter status data types
 
 class BaseStatusType:
-    """Base class for types of status values that may appear in the status data payload"""
+    """Base class for types of status values that may appear in the status data payload."""
 
     def get_value(self, status_format, status_payload):
         """Formats and returns the value specified by this data type or None if it is not present. Abstract method"""
         raise NotImplementedError("Abstract method")
 
 
-def _value_of(type_id, status_format, status_payload):
-    """Retrieves the value with given ID from the payload or None if it is not present. The value is a 2-byte
-    sequence"""
-    idx = status_format.find(type_id)
-    if idx == -1:
-        return None
-    return status_payload[idx * 2:idx * 2 + 2]
+class BytesStatusType(BaseStatusType):
+    """Status type that returns the bytes at given type id positions, to be used as a base class for higher levels."""
 
-
-class IntStatusType(BaseStatusType):
-    def __init__(self, *type_ids, signed=False):
-        """Type ID is the identifier of this type that will appear in the status format. Supplying more IDs will
-        concatenate the value bytes to form a larger integer. Signed indicates if the status value is signed."""
+    def __init__(self, *type_ids):
+        """The type IDs indicate the type IDs in the format string that we search for. Found values are concatenated."""
         self.type_ids = type_ids
+
+    def get_value(self, status_format, status_payload):
+        """Returns the value at ID positions or None if one of the IDs is not present."""
+        indices = [status_format.find(type_id) for type_id in self.type_ids]
+        if -1 in indices:
+            return None
+        values = [status_payload[i * 2:i * 2 + 2] for i in indices]
+        return b''.join(values)
+
+
+class IntStatusType(BytesStatusType):
+    def __init__(self, *type_ids, signed=False):
+        """See BytesStatusType for positional args, signed indicates if the status value is signed."""
+        super().__init__(*type_ids)
         self.signed = signed
 
     def get_value(self, status_format, status_payload):
-        values = [_value_of(type_id, status_format, status_payload) for type_id in self.type_ids]
-        if None in values:
+        sequence = super().get_value(status_format, status_payload)
+        if sequence is None:
             return None
-        value_sequence = b''.join(values)
-        return int.from_bytes(value_sequence, byteorder='big', signed=self.signed)
+        return int.from_bytes(sequence, byteorder='big', signed=self.signed)
 
 
 class DecimalStatusType(IntStatusType):
@@ -87,7 +98,7 @@ class DecimalStatusType(IntStatusType):
         return Decimal(int_val).scaleb(self.scale)
 
 
-class OperatingModeStatusType(IntStatusType):
+class OperationModeStatusType(IntStatusType):
 
     def __init__(self):
         super().__init__(0x0c)
@@ -113,30 +124,53 @@ class OneOfStatusType(BaseStatusType):
         return None
 
 
-status_types = {
-    'internal_temperature': DecimalStatusType(0x00, signed=True, scale=-1),
-    'pv1_voltage': DecimalStatusType(0x01, scale=-1),
-    'pv2_voltage': DecimalStatusType(0x02, scale=-1),
-    'pv1_current': DecimalStatusType(0x04, scale=-1),
-    'pv2_current': DecimalStatusType(0x05, scale=-1),
-    'energy_total': OneOfStatusType(DecimalStatusType(0x07, 0x08, scale=-1), DecimalStatusType(0x35, 0x36, scale=-1)),
-    'total_operation_time': IntStatusType(0x09, 0x0a),
-    'output_power': OneOfStatusType(DecimalStatusType(0x0b), DecimalStatusType(0x34)),
-    'operating_mode': OperatingModeStatusType(),
-    'energy_today': DecimalStatusType(0x11, scale=-2),
-    'pv1_input_power': DecimalStatusType(0x27),
-    'pv2_input_power': DecimalStatusType(0x28),
-    'heatsink_temperature': DecimalStatusType(0x2f, signed=True, scale=-1),
-    'grid_current': DecimalStatusType(0x31, scale=-1),
-    'grid_voltage': DecimalStatusType(0x32, scale=-1),
-    'grid_frequency': DecimalStatusType(0x33, scale=-2),
-    'grid_current_s_phase': DecimalStatusType(0x51, scale=-1),
-    'grid_voltage_s_phase': DecimalStatusType(0x52, scale=-1),
-    'grid_frequency_s_phase': DecimalStatusType(0x53, scale=-2),
-    'grid_current_t_phase': DecimalStatusType(0x71, scale=-1),
-    'grid_voltage_t_phase': DecimalStatusType(0x72, scale=-1),
-    'grid_frequency_t_phase': DecimalStatusType(0x73, scale=-2),
-}
+class IfPresentStatusType(BytesStatusType):
+    """Filters status type based on presence of another type ID."""
+
+    def __init__(self, type_id, presence, status_type):
+        """
+        :param type_id: the type ID to check presence for
+        :param presence: if the type ID must be present (True) or must not be present (False)
+        :param status_type: the status type value that will be used
+        """
+        super().__init__(type_id)
+        self.presence = presence
+        self.status_type = status_type
+
+    def get_value(self, status_format, status_payload):
+        actual_presence = super().get_value(status_format, status_payload) is not None
+        if self.presence == actual_presence:
+            return self.status_type.get_value(status_format, status_payload)
+        return None
+
+
+status_types = OrderedDict(
+    operation_mode=OperationModeStatusType(),
+    total_operation_time=IntStatusType(0x09, 0x0a),
+    pv1_input_power=DecimalStatusType(0x27),
+    pv2_input_power=DecimalStatusType(0x28),
+    pv1_voltage=DecimalStatusType(0x01, scale=-1),
+    pv2_voltage=DecimalStatusType(0x02, scale=-1),
+    pv1_current=DecimalStatusType(0x04, scale=-1),
+    pv2_current=DecimalStatusType(0x05, scale=-1),
+    output_power=OneOfStatusType(DecimalStatusType(0x0b), DecimalStatusType(0x34)),
+    energy_today=DecimalStatusType(0x11, scale=-2),
+    energy_total=OneOfStatusType(DecimalStatusType(0x07, 0x08, scale=-1), DecimalStatusType(0x35, 0x36, scale=-1)),
+    grid_voltage=IfPresentStatusType(0x51, False, DecimalStatusType(0x32, scale=-1)),
+    grid_current=IfPresentStatusType(0x51, False, DecimalStatusType(0x31, scale=-1)),
+    grid_frequency=IfPresentStatusType(0x51, False, DecimalStatusType(0x33, scale=-2)),
+    grid_voltage_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x32, scale=-1)),
+    grid_current_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x31, scale=-1)),
+    grid_frequency_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x33, scale=-2)),
+    grid_voltage_s_phase=DecimalStatusType(0x52, scale=-1),
+    grid_current_s_phase=DecimalStatusType(0x51, scale=-1),
+    grid_frequency_s_phase=DecimalStatusType(0x53, scale=-2),
+    grid_voltage_t_phase=DecimalStatusType(0x72, scale=-1),
+    grid_current_t_phase=DecimalStatusType(0x71, scale=-1),
+    grid_frequency_t_phase=DecimalStatusType(0x73, scale=-2),
+    internal_temperature=DecimalStatusType(0x00, signed=True, scale=-1),
+    heatsink_temperature=DecimalStatusType(0x2f, signed=True, scale=-1),
+)
 
 
 def _samil_string(val):
@@ -174,17 +208,17 @@ class Inverter:
             '5': 'S-phase inverter of the three combined single-phase ones',
             '6': 'T-phase inverter of the three combined single-phase ones',
         }
-        return {
-            'device_type': device_types[_samil_string(payload[0:1])],
-            'va_rating': _samil_string(payload[1:7]),
-            'firmware_version': _samil_string(payload[7:12]),
-            'model_name': _samil_string(payload[12:28]),
-            'manufacturer': _samil_string(payload[28:44]),
-            'serial_number': _samil_string(payload[44:60]),
-            'communication_version': _samil_string(payload[60:65]),
-            'other_version': _samil_string(payload[65:70]),
-            'general': _samil_string(payload[70:71]),
-        }
+        return OrderedDict(
+            device_type=device_types[_samil_string(payload[0:1])],
+            va_rating=_samil_string(payload[1:7]),
+            firmware_version=_samil_string(payload[7:12]),
+            model_name=_samil_string(payload[12:28]),
+            manufacturer=_samil_string(payload[28:44]),
+            serial_number=_samil_string(payload[44:60]),
+            communication_version=_samil_string(payload[60:65]),
+            other_version=_samil_string(payload[65:70]),
+            general=_samil_string(payload[70:71]),
+        )
 
     def status(self):
         """Status data like voltage, current, energy and temperature"""
@@ -199,7 +233,7 @@ class Inverter:
                             self._status_format.hex(), payload.hex())
 
         # Retrieve all status data type values
-        status_values = {}
+        status_values = OrderedDict()
         for name, type_def in status_types.items():
             val = type_def.get_value(self._status_format, payload)
             if val is not None:
