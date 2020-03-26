@@ -4,11 +4,11 @@ PVOutput.org uploader for Samil Power inverters. Supports:
 
 * SolarRiver TD series
 * SolarRiver TL-D series (confirmed)
-* SolarLake TL series works only with [v2](https://github.com/mhvis/solar/tree/v2), which is not tested in production and likely needs some work to get running.
+* SolarLake TL series works only with [v2](https://github.com/mhvis/solar/tree/v2), which is not tested in production and likely needs some work to get running properly.
 * For SolarLake TL-PM series check out this fork! ->
 [semonet/solar](https://github.com/semonet/solar)
 
-Project is not actively maintained but feel free to open an issue or PR.
+Project is not actively maintained but feel free to open an issue or PR. If you're planning on modifying or extracting parts of the source code for your different needs I recommend to check out [v2](https://github.com/mhvis/solar/tree/v2) which has a much better code structure.
 
 ## Requirements
 
