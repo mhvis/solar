@@ -1,12 +1,14 @@
 # Samil Power uploader
 
-PVOutput.org uploader for the following Samil Power inverters: SolarRiver TD
-series, SolarRiver TL-D series, SolarLake TL series.
+PVOutput.org uploader for Samil Power inverters. Supports:
 
-I use it for my system [here](http://pvoutput.org/intraday.jsp?sid=44819).
-
-If you have a SolarLake TL-PM series inverter, check out this fork! ->
+* SolarRiver TD series
+* SolarRiver TL-D series (confirmed)
+* SolarLake TL series works only with [v2](https://github.com/mhvis/solar/tree/v2), which is not tested in production and likely needs some work to get running.
+* For SolarLake TL-PM series check out this fork! ->
 [semonet/solar](https://github.com/semonet/solar)
+
+Project is not actively maintained but feel free to open an issue or PR.
 
 ## Usage
 
