@@ -10,11 +10,15 @@ PVOutput.org uploader for Samil Power inverters. Supports:
 
 Project is not actively maintained but feel free to open an issue or PR.
 
+## Requirements
+
+* Linux. Windows is not tested and the code likely needs modifications to work on Windows.
+* Python 3
+
 ## Usage
 
 * Ensure both the system you're running this script on and the inverter are on
 the same network.
-* Ensure Python 3 is installed (needed for this script).
 * Obtain your PVOutput.org API key and system ID and put this in
 `samil_upload.ini`. If you have multiple inverters, see the section on
 [multiple inverters configuration](#multiple-inverters-configuration).
@@ -32,6 +36,8 @@ network in `samil_upload.ini` (should not be needed).
 
 ## Multiple inverters configuration
 
+*Skip if you have only 1 inverter*
+
 For using multiple inverters, you add a section for each inverter, in which you
 can specify the inverter serial number or IP address. The settings in the
 DEFAULT section apply to all inverters (useful for the API key). These can also
@@ -42,7 +48,7 @@ which is the first inverter found in the network that applies to the section
 filter. Thus if you have multiple sections without a specified serial number and
 IP address, the first inverter found is matched to all these sections.
 
-Here are some examples:
+## Configuration examples
 
 ### Single inverter
 
