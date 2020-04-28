@@ -1,4 +1,5 @@
 import sys
+import logging
 from argparse import ArgumentParser
 from time import time, sleep
 
@@ -109,6 +110,7 @@ def main():
     # Main arguments
     parser = ArgumentParser(prog='solar',
                             description='Samil Power SolarRiver TL, SolarRiver TL-D and SolarLake TL tool.')
+    parser.add_argument('--debug', action='store_true', help='print debug output')
     parser.add_argument('--version', action='version', version='%(prog)s 2.0')
 
     # Subparsers
@@ -153,6 +155,10 @@ def main():
     parser_history.set_defaults(func=history)
 
     args = parser.parse_args()
+    # Debug output
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    
     if not args.subcommand:
         parser.print_help()
         parser.exit()
