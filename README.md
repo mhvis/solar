@@ -1,4 +1,4 @@
-# Samil Power tool
+# Samil Power inverter tool
 
 Get model and status data from Samil Power inverters over the network.
 
@@ -50,12 +50,47 @@ The following units are used for the status values:
 * Temperature in degrees Celcius
 * Operating time in hours
 
+This project was originally a fork of [zombiekipling/solriv](https://github.com/zombiekipling/solriv)
+but is now completely rewritten to implement new requirements.
+
+
+## As a library
+
+You can use this project as a library.
+For documentation you will need to read through the source code.
+
+Example to get started:
+
+```python
+from samil import InverterListener
+
+with InverterListener() as listener:
+    # Search for an inverter
+    inverter = listener.accept_inverter()
+
+with inverter: 
+    # Use with statement to automatically close the connection after use
+
+    # Model info
+    model = inverter.model()
+    model["serial_number"]  # E.g. DW413B8080
+    # ... (see source code)
+
+    status = inverter.status()
+    status["output_power"]  # E.g. 513 Watt
+    # ... (see source code)
+```
 
 ## Development info
 
-* Install development requirements: `pip install -r dev-requirements.txt -r requirements.txt`
-* Lint code: `flake8`
-* Run testcases: `python -m unittest`
+Development installation:
+```commandline
+pip install -e .
+pip install -r dev-requirements.txt
+```
+Lint code: `flake8`
+
+Run testcases: `python -m unittest`
 
 
 ## License

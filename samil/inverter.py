@@ -1,10 +1,119 @@
+"""Communicate with Samil Power inverters.
+
+For protocol information see https://github.com/mhvis/solar/wiki/Communication-protocol.
+"""
+
 import logging
 from collections import OrderedDict
 from decimal import Decimal
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
 
 
-# For protocol information see https://github.com/mhvis/solar/wiki/Communication-protocol
+class Inverter:
+    """Provides methods for communicating with a connected inverter.
+
+    To open a connection with an inverter, see the InverterListener class.
+
+    The request methods are synchronous and return the response. When the
+    connection is lost an exception is raised on the next time that a request
+    is made."""
+
+    # Caches the format for inverter status messages
+    _status_format = None
+
+    def __init__(self, sock, addr):
+        self.sock = sock
+        self.addr = addr
+
+    def __enter__(self):
+        return self.sock.__enter__()
+
+    def __exit__(self, *args):
+        self.sock.shutdown(SHUT_RDWR)
+        self.sock.__exit__(*args)
+
+    def model(self):
+        """Model information like the type, software version, and inverter serial number"""
+        ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83')
+        device_types = {
+            '1': 'Single-phase inverter',
+            '2': 'Three-phase inverter',
+            '3': 'SolarEnvi Monitor',
+            '4': 'R-phase inverter of the three combined single-phase ones',
+            '5': 'S-phase inverter of the three combined single-phase ones',
+            '6': 'T-phase inverter of the three combined single-phase ones',
+        }
+        return OrderedDict(
+            device_type=device_types[_samil_string(payload[0:1])],
+            va_rating=_samil_string(payload[1:7]),
+            firmware_version=_samil_string(payload[7:12]),
+            model_name=_samil_string(payload[12:28]),
+            manufacturer=_samil_string(payload[28:44]),
+            serial_number=_samil_string(payload[44:60]),
+            communication_version=_samil_string(payload[60:65]),
+            other_version=_samil_string(payload[65:70]),
+            general=_samil_string(payload[70:71]),
+        )
+
+    def status(self):
+        """Status data like voltage, current, energy and temperature"""
+        if not self._status_format:
+            self.status_format()
+
+        ident, payload = self._send_receive(b'\x01\x02\x02', b'', b'\x01\x82')
+
+        # Payload should be twice the size of the status format
+        if 2 * len(self._status_format) != len(payload):
+            logging.warning("Size of status payload and format differs, format %s, payload %s",
+                            self._status_format.hex(), payload.hex())
+
+        # Retrieve all status data type values
+        status_values = OrderedDict()
+        for name, type_def in status_types.items():
+            val = type_def.get_value(self._status_format, payload)
+            if val is not None:
+                status_values[name] = val
+        return status_values
+
+    def status_format(self):
+        """Get the format used for the status data messages from the inverter.
+
+        See the protocol information for details.
+        """
+        ident, payload = self._send_receive(b'\x01\x00\x02', b'', b'\x01\x80')
+        self._status_format = payload  # Cache result
+        return payload
+
+    def history(self, start, end):
+        raise NotImplementedError('Not yet implemented')
+
+    def _send_receive(self, identifier, payload, response_identifier=None):
+        """Send/receive pair utility method, if response_identifier is given this value is compared with the identifier
+        of the actual response and messages that have a wrong identifier are ignored. The comparison is done using
+        startswith."""
+        self._send(identifier, payload)
+        response_id_actual, response_payload = self._receive()
+        if response_identifier:
+            while not response_id_actual.startswith(response_identifier):
+                logging.warning('Unexpected response (%s, %s) for request %s, retrying',
+                                response_id_actual.hex(), response_payload.hex(), identifier.hex())
+                response_id_actual, response_payload = self._receive()
+        return response_id_actual, response_payload
+
+    def _send(self, identifier, payload):
+        message = _samil_request(identifier, payload)
+        logging.debug('Sending %s', message.hex())
+        self.sock.send(message)
+
+    def _receive(self):
+        message = self.sock.recv(4096)
+        logging.debug('Received %s', message.hex())
+        return _samil_response(message)
+
+
+class InverterNotFoundError(Exception):
+    """No inverter was found on the network."""
+
 
 class InverterListener(socket):
     """Listener for new inverter connections."""
@@ -17,12 +126,19 @@ class InverterListener(socket):
         self.bind((interface_ip, 1200))
         self.listen(5)
 
-    def accept_inverter(self, advertisements=10, interval=5.0):
-        """Advertises server and returns an Inverter instance for the first inverter that responds.
+    def accept_inverter(self, advertisements=10, interval=5.0) -> Inverter:
+        """Searches for an inverter on the network.
 
-        :param interval: time between each advertisement (inexact)
-        :param advertisements: number of advertisement messages to send
-        :return the inverter or None when no inverter was found
+        Args:
+            interval: Time between each search message/advertisement.
+            advertisements: Number of advertisement messages to send.
+
+        Returns:
+            The first inverter that is found.
+
+        Raises:
+            InverterNotFoundError: When no inverter was found after all search
+                messages have been sent.
         """
         message = _samil_request(b'\x00\x40\x02', b'I AM SERVER')
         self.settimeout(interval)
@@ -41,7 +157,7 @@ class InverterListener(socket):
                 else:
                     logging.info('Connected with inverter on address %s', addr)
                     return Inverter(sock, addr)
-        return None
+        raise InverterNotFoundError
 
 
 # Inverter status data types
@@ -176,102 +292,6 @@ status_types = OrderedDict(
 def _samil_string(val):
     """Decodes a possibly null terminated byte array to a string using ASCII and strips whitespace"""
     return val.partition(b'\x00')[0].decode('ascii').strip()
-
-
-class Inverter:
-    """This class provides methods for making requests to an inverter. Use InverterListener to open a connection to a
-    new inverter. The request methods are synchronous and return the response. When the connection is lost an exception
-    is raised the next time a request is made."""
-
-    # Caches the format for inverter status messages
-    _status_format = None
-
-    def __init__(self, sock, addr):
-        self.sock = sock
-        self.addr = addr
-
-    def __enter__(self):
-        return self.sock.__enter__()
-
-    def __exit__(self, *args):
-        self.sock.shutdown(SHUT_RDWR)
-        self.sock.__exit__(*args)
-
-    def model(self):
-        """Model information like the type, software version, and inverter serial number"""
-        ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83')
-        device_types = {
-            '1': 'Single-phase inverter',
-            '2': 'Three-phase inverter',
-            '3': 'SolarEnvi Monitor',
-            '4': 'R-phase inverter of the three combined single-phase ones',
-            '5': 'S-phase inverter of the three combined single-phase ones',
-            '6': 'T-phase inverter of the three combined single-phase ones',
-        }
-        return OrderedDict(
-            device_type=device_types[_samil_string(payload[0:1])],
-            va_rating=_samil_string(payload[1:7]),
-            firmware_version=_samil_string(payload[7:12]),
-            model_name=_samil_string(payload[12:28]),
-            manufacturer=_samil_string(payload[28:44]),
-            serial_number=_samil_string(payload[44:60]),
-            communication_version=_samil_string(payload[60:65]),
-            other_version=_samil_string(payload[65:70]),
-            general=_samil_string(payload[70:71]),
-        )
-
-    def status(self):
-        """Status data like voltage, current, energy and temperature"""
-        if not self._status_format:
-            self.status_format()
-
-        ident, payload = self._send_receive(b'\x01\x02\x02', b'', b'\x01\x82')
-
-        # Payload should be twice the size of the status format
-        if 2 * len(self._status_format) != len(payload):
-            logging.warning("Size of status payload and format differs, format %s, payload %s",
-                            self._status_format.hex(), payload.hex())
-
-        # Retrieve all status data type values
-        status_values = OrderedDict()
-        for name, type_def in status_types.items():
-            val = type_def.get_value(self._status_format, payload)
-            if val is not None:
-                status_values[name] = val
-        return status_values
-
-    def status_format(self):
-        """Requests the format used for the status data message from the inverter, see the protocol information for
-        details"""
-        ident, payload = self._send_receive(b'\x01\x00\x02', b'', b'\x01\x80')
-        self._status_format = payload
-        return payload
-
-    def history(self, start, end):
-        raise NotImplementedError('Not yet implemented')
-
-    def _send_receive(self, identifier, payload, response_identifier=None):
-        """Send/receive pair utility method, if response_identifier is given this value is compared with the identifier
-        of the actual response and messages that have a wrong identifier are ignored. The comparison is done using
-        startswith."""
-        self._send(identifier, payload)
-        response_id_actual, response_payload = self._receive()
-        if response_identifier:
-            while not response_id_actual.startswith(response_identifier):
-                logging.warning('Unexpected response (%s, %s) for request %s, retrying',
-                                response_id_actual.hex(), response_payload.hex(), identifier.hex())
-                response_id_actual, response_payload = self._receive()
-        return response_id_actual, response_payload
-
-    def _send(self, identifier, payload):
-        message = _samil_request(identifier, payload)
-        logging.debug('Sending %s', message.hex())
-        self.sock.send(message)
-
-    def _receive(self):
-        message = self.sock.recv(4096)
-        logging.debug('Received %s', message.hex())
-        return _samil_response(message)
 
 
 def _checksum(message):

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from solar.samil import _checksum, _samil_request, _samil_response, DecimalStatusType, _samil_string, \
+from samil.inverter import _checksum, _samil_request, _samil_response, DecimalStatusType, _samil_string, \
     OperationModeStatusType, OneOfStatusType, BytesStatusType, IfPresentStatusType
 
 
