@@ -1,3 +1,5 @@
+"""PVOutput.org methods."""
+
 from datetime import datetime
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -5,8 +7,13 @@ from urllib.request import Request, urlopen
 
 def pvoutput_add_status(system, api_key, energy_gen=None, power_gen=None, energy_con=None, power_con=None, temp=None,
                         voltage=None, cumulative=False, net=False):
-    """PVOutput add status call. API doc: https://pvoutput.org/help.html#api-addstatus. Returns the response"""
+    """Upload status data to PVOutput.org.
 
+    See API doc: https://pvoutput.org/help.html#api-addstatus.
+
+    Returns:
+        Response from PVOutput.org.
+    """
     now = datetime.now()
     data = {
         'd': now.strftime('%Y%m%d'),

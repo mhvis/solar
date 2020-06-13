@@ -297,3 +297,8 @@ def _samil_response(message):
     if checksum != _checksum(message[:7 + payload_size]):
         logging.warning('Checksum invalid for message %s', message.hex())
     return identifier, payload
+
+
+class KeepAliveInverter(Inverter):
+    """Inverter that is kept alive by sending a request every couple seconds."""
+    pass

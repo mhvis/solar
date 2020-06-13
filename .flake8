@@ -1,0 +1,5 @@
+[flake8]
+exclude = .git,__pycache__,venv
+max-complexity = 10
+docstring-convention = google
+max-line-length = 119

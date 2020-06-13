@@ -1,3 +1,6 @@
+"""Command-line interface."""
+
+import logging
 import sys
 import logging
 from argparse import ArgumentParser
@@ -74,21 +77,22 @@ def monitor(args):
     if not inverter:
         print("Could not find inverter")
         sys.exit()
-    print("Found inverter on address {}".format(inverter.addr))
-    model_dict = inverter.model()
-    print()
-    print("Model info")
-    print(_format_model(model_dict))
-    n = 1
-    t = time()
-    while True:
-        status_dict = inverter.status()
+    with inverter:
+        print("Found inverter on address {}".format(inverter.addr))
+        model_dict = inverter.model()
         print()
-        print("Status data #{}".format(n))
-        print(_format_status(status_dict))
-        t += args.seconds
-        n += 1
-        sleep(max(t - time(), 0))
+        print("Model info")
+        print(_format_model(model_dict))
+        n = 1
+        t = time()
+        while True:
+            status_dict = inverter.status()
+            print()
+            print("Status data #{}".format(n))
+            print(_format_status(status_dict))
+            t += args.seconds
+            n += 1
+            sleep(max(t - time(), 0))
 
 # History
 
@@ -99,7 +103,32 @@ def history(args):
 # PVOutput
 
 def pvoutput(args):
-    pass
+    if args.num < 1:
+        raise ValueError('Invalid number of inverters')
+    # Set logging
+    loglevel = logging.ERROR if args.quiet else logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(format='%(levelname)s:%(module)s:%(message)s', level=loglevel)
+    # Search for the right inverter
+    with InverterListener(interface_ip=args.interface) as listener:
+        selected_inverters = []
+        ignored_inverters = []
+        while True:
+            inverter = listener.accept_inverter()
+            if not inverter:
+                raise ConnectionError('Could not find inverter')
+            model = inverter.model()
+            logging.info('Inverter serial number: %s', model['serial_number'])
+            # Check if inverter is selected
+            selected = True
+            if args.serial_number and model['serial_number'] not in args.serial_number:
+                selected = False
+            if args.ip and inverter.addr[0] not in args.ip:
+                selected = False
+            logging.info('Inverter is %s', 'selected' if selected else 'ignored')
+            if selected:
+                selected_inverters.append(inverter)
+            else:
+                ignored_inverters.append(inverter)
 
 
 # CLI
@@ -131,6 +160,7 @@ def main():
     parser_pvoutput = subparsers.add_parser('pvoutput', help='upload status data to PVOutput',
                                             description='Upload status data to PVOutput.')
     parser_pvoutput.add_argument('-q', '--quiet', action='store_true', help='only display error messages')
+    parser_pvoutput.add_argument('-v', '--verbose', action='store_true', help='show debug output')
     parser_pvoutput.add_argument('-i', '--interface', help='bind interface IP (default: all interfaces)', default='')
     parser_pvoutput.add_argument('-n', '--inverters', type=int, default=1,
                                  help='number of inverters (default: %(default)s)', dest='num')
