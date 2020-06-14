@@ -1,5 +1,7 @@
 # Samil Power inverter tool
 
+![PyPI](https://img.shields.io/pypi/v/samil)
+
 Get model and status data from Samil Power inverters over the network.
 
 ## Supported inverter series
