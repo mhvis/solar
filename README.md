@@ -8,7 +8,8 @@ Get model and status data from Samil Power inverters over the network.
 * SolarRiver TL-D
 * SolarLake TL
 
-If you have a SolarLake TL-PM series inverter, check out this fork! ➡
+If you have a SolarLake TL-PM series inverter, check out this fork!
+->
 [semonet/solar](https://github.com/semonet/solar)
 
 If you just need PVOutput.org uploading, you can also try the
@@ -18,8 +19,8 @@ If you just need PVOutput.org uploading, you can also try the
 ## Features
 
 * View inverter data
-* Upload data to PVOutput.org
-* Publish inverter data on MQTT
+* Upload to PVOutput.org
+* Publish to MQTT broker
 
 
 
@@ -28,12 +29,75 @@ If you just need PVOutput.org uploading, you can also try the
 * Python 3
 * Inverter needs to be in the same network
 
-## Usage
+## Installation
 
-To print the usage information:
+The package can be installed from [PyPI](https://pypi.org/project/samil/):
 
 ```commandline
-python3 -m solar
+$ pip install samil
+```
+
+On Ubuntu:
+
+```commandline
+$ sudo apt install python3-pip
+$ pip3 install --user samil
+```
+Usually `samil` can then be found at `~/.local/bin/samil`.
+Often that directory is already in `PATH`, so you can call it using `samil`.
+You might need to relogin or add that directory to `PATH`. 
+
+
+## Usage
+
+```
+$ samil --help
+Usage: samil [OPTIONS] COMMAND [ARGS]...
+
+  Samil Power inverter command-line tool.
+
+Options:
+  --debug    Enable debug output.
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  monitor  Print model and status info for an inverter.
+  mqtt     Publish inverter data to an MQTT broker.
+```
+
+```
+$ samil monitor --help
+Usage: samil monitor [OPTIONS]
+
+  Print model and status info for an inverter.
+
+  When you have multiple inverters, run this command multiple times to
+  connect to all inverters.
+
+Options:
+  --interval FLOAT RANGE  Status interval.  [default: 5.0]
+  --interface TEXT        IP address of local network interface to bind to.
+  --help                  Show this message and exit.
+```
+
+```
+$ samil mqtt --help
+Usage: samil mqtt [OPTIONS]
+
+  Publish inverter data to an MQTT broker.
+
+Options:
+  -h, --host TEXT     MQTT broker hostname/IP address.  [default: localhost]
+  -p, --port INTEGER  MQTT broker port.  [default: 1883]
+  --client-id TEXT    Client ID used when connecting to the broker. If not
+                      provided, one will be randomly generated.
+
+  --tls               Enable SSL/TLS support.
+  --username TEXT     MQTT username.
+  --password TEXT     MQTT password.
+  --interface TEXT    IP address of local network interface to bind to.
+  --help              Show this message and exit.
 ```
 
 ## Info

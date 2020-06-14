@@ -1,5 +1,5 @@
 [flake8]
-exclude = .git,__pycache__,venv
+exclude = .git,__pycache__,venv,build,dist,samil.egg-info
 max-complexity = 10
 docstring-convention = google
 max-line-length = 119

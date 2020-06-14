@@ -119,6 +119,12 @@ class InverterListener(socket):
     """Listener for new inverter connections."""
 
     def __init__(self, interface_ip='', **kwargs):
+        """Creates listener socket for the incoming inverter connections.
+
+        Args:
+            interface_ip: Bind interface IP.
+            **kwargs: Will be passed on to socket.
+        """
         super().__init__(AF_INET, SOCK_STREAM, **kwargs)
         self.interface_ip = interface_ip
         # Allow socket bind conflicts
@@ -160,25 +166,36 @@ class InverterListener(socket):
         raise InverterNotFoundError
 
 
-# Inverter status data types
-
 class BaseStatusType:
-    """Base class for types of status values that may appear in the status data payload."""
+    """Type of status value that may appear in the status data.
+
+    See the 'communication protocol' wiki page for details on status types.
+    """
 
     def get_value(self, status_format, status_payload):
-        """Formats and returns the value specified by this data type or None if it is not present. Abstract method"""
+        """Returns the value for this status type.
+
+        Args:
+            status_format: The status format byte-string as provided by the
+                inverter.
+            status_payload: The status data byte-string as provided by the
+                inverter.
+
+        Returns:
+            The value for this status type or None if the value is not present.
+        """
         raise NotImplementedError("Abstract method")
 
 
 class BytesStatusType(BaseStatusType):
-    """Status type that returns the bytes at given type id positions, to be used as a base class for higher levels."""
+    """Gets the bytes at given type ID positions."""
 
     def __init__(self, *type_ids):
         """The type IDs indicate the type IDs in the format string that we search for. Found values are concatenated."""
         self.type_ids = type_ids
 
     def get_value(self, status_format, status_payload):
-        """Returns the value at ID positions or None if one of the IDs is not present."""
+        """See base class."""
         indices = [status_format.find(type_id) for type_id in self.type_ids]
         if -1 in indices:
             return None
@@ -193,6 +210,7 @@ class IntStatusType(BytesStatusType):
         self.signed = signed
 
     def get_value(self, status_format, status_payload):
+        """See base class."""
         sequence = super().get_value(status_format, status_payload)
         if sequence is None:
             return None
@@ -200,14 +218,22 @@ class IntStatusType(BytesStatusType):
 
 
 class DecimalStatusType(IntStatusType):
-    """Status type that has a decimal value"""
+    """Status type that scales the result and returns a Decimal value."""
 
-    def __init__(self, *args, scale=0, **kwargs):
-        """Scale is applied by multiplying the result with 10^scale. See IntStatusType for the other arguments"""
-        super().__init__(*args, **kwargs)
+    def __init__(self, *type_ids, scale: int = 0, signed: bool = False):
+        """Constructor.
+
+        Args:
+            *type_ids: Data type identifier.
+            scale: How to scale the (integer) value returned by the inverter.
+                The result is: <inverter value>*10^scale.
+            signed: Whether the value is signed.
+        """
+        super().__init__(*type_ids, signed=signed)
         self.scale = scale
 
     def get_value(self, status_format, status_payload):
+        """See base class."""
         int_val = super().get_value(status_format, status_payload)
         if int_val is None:
             return None
@@ -220,19 +246,24 @@ class OperationModeStatusType(IntStatusType):
         super().__init__(0x0c)
 
     def get_value(self, status_format, status_payload):
+        """See base class."""
         int_val = super().get_value(status_format, status_payload)
         operating_modes = {0: 'Wait', 1: 'Normal', 2: 'Fault', 3: 'Permanent fault', 4: 'Check', 5: 'PV power off'}
         return operating_modes[int_val]
 
 
 class OneOfStatusType(BaseStatusType):
-    """Returns the value of the first concrete status type value that is not None. Can be used if there are multiple
-    type IDs that refer to the same status type and are mutually exclusive."""
+    """Returns the value of the first not-None status type value.
+
+    Can be used for the case when there are multiple type IDs that refer to the
+    same status type and are mutually exclusive.
+    """
 
     def __init__(self, *status_types):
         self.status_types = status_types
 
     def get_value(self, status_format, status_payload):
+        """See base class."""
         for status_type in self.status_types:
             val = status_type.get_value(status_format, status_payload)
             if val is not None:
@@ -244,16 +275,21 @@ class IfPresentStatusType(BytesStatusType):
     """Filters status type based on presence of another type ID."""
 
     def __init__(self, type_id, presence, status_type):
-        """
-        :param type_id: the type ID to check presence for
-        :param presence: if the type ID must be present (True) or must not be present (False)
-        :param status_type: the status type value that will be used
+        """Constructor.
+
+        Args:
+            type_id: The type ID to check presence for.
+            presence: If the type ID must be present (True) or must not be
+                present (False).
+            status_type: The status type value that will be returned if the
+                above type ID is present.
         """
         super().__init__(type_id)
         self.presence = presence
         self.status_type = status_type
 
     def get_value(self, status_format, status_payload):
+        """See base class."""
         actual_presence = super().get_value(status_format, status_payload) is not None
         if self.presence == actual_presence:
             return self.status_type.get_value(status_format, status_payload)
