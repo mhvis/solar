@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="samil",
-    version="2.0.0.post2",
+    version="2.1.0a1",
     author="Maarten Visscher",
     author_email="mail@maartenvisscher.nl",
     description="Samil Power inverter tool",

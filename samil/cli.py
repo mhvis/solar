@@ -1,7 +1,8 @@
 """Command-line interface."""
-
+import json
 import logging
 import sys
+from decimal import Decimal
 from time import time, sleep
 
 import click
@@ -25,8 +26,7 @@ def cli(debug: bool):
 @click.option('--interval',
               default=5.0,
               help="Status interval.",
-              show_default=True,
-              type=click.FloatRange(min=0, max=20))
+              show_default=True)
 @click.option('--interface', help="IP address of local network interface to bind to.")
 def monitor(interval: float, interface: str):
     """Print model and status info for an inverter.
@@ -34,6 +34,9 @@ def monitor(interval: float, interface: str):
     When you have multiple inverters, run this command multiple times to
     connect to all inverters.
     """
+    if interval > 20:
+        # Todo
+        raise ValueError("Interval of more than 20 seconds is not yet supported (requires keep-alive messages).")
 
     _model_keys = {
         'device_type': 'Device type',
@@ -115,30 +118,89 @@ def monitor(interval: float, interface: str):
             sleep(max(t - time(), 0))
 
 
+class DecimalEncoder(json.JSONEncoder):
+    """JSON encoder that converts Decimal to float.
+
+    Note: precision is lost here!
+    """
+
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return float(o)
+        return super(DecimalEncoder, self).default(o)
+
+
 @cli.command()
-@click.option('--host', '-h', default="localhost", help="MQTT broker hostname/IP address.", show_default=True)
+@click.option('--inverters', '-n', default=1, help="Number of inverters.", show_default=True)
+@click.option('--interval', '-i', default=10.0, help="Interval between status messages.", show_default=True)
+@click.option('--host', '-h', default="localhost", help="MQTT broker hostname or IP.", show_default=True)
 @click.option('--port', '-p', default=1883, help="MQTT broker port.", show_default=True)
 @click.option('--client-id',
               default='',
-              help="Client ID used when connecting to the broker. If not provided, one will be randomly generated.")
-@click.option('--tls', is_flag=True, default=False, help="Enable SSL/TLS support.")
+              help="MQTT client ID. If not provided, one will be randomly generated.")
+@click.option('--tls', is_flag=True, default=False, help="Enable MQTT SSL/TLS support.")
 @click.option('--username', help="MQTT username.")
 @click.option('--password', help="MQTT password.")
+@click.option('--topic-prefix', help="MQTT topic prefix.", default="inverter", show_default=True)
 @click.option('--interface', help="IP address of local network interface to bind to.")
-def mqtt(host, port: int, client_id, tls: bool, username, password, interface):
-    """Publish inverter data to an MQTT broker."""
+def mqtt(inverters, interval, host, port, client_id, tls: bool, username, password, interface, topic_prefix):
+    """Publish inverter data to an MQTT broker.
+
+    The default topic format is inverter/<serial number>/status, e.g.
+    inverter/DW413B8080/status. The message value is a JSON object with all
+    status data from the inverter. Example message value:
+
+        {"operation_mode":"Normal","total_operation_time":45,
+        "pv1_input_power":2822.0,"pv2_input_power":0.0,"pv1_voltage":586.5,
+        "pv2_voltage":6.7,"pv1_current":4.8,"pv2_current":0.1,
+        "output_power":2589.0,"energy_today":21.2,"energy_total":77.0,
+        "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
+        "internal_temperature":35.0}
+    """
+    # Todo: add example message to docstring.
+    if interval > 20:
+        # Todo
+        raise ValueError("Interval of more than 20 seconds is not yet supported (requires keep-alive messages).")
+    # First search and connect to inverter(s)
+    inverter_configs = []
+    with InverterListener(interface_ip=interface or '') as listener:
+        print("Connecting to {} inverter(s)".format(inverters))
+        for i in range(inverters):
+            inverter = listener.accept_inverter()
+            serial_number = inverter.model()["serial_number"]
+            topic = "{}/{}/status".format(topic_prefix, serial_number)
+            print("Connected to inverter {} on IP {}".format(serial_number, inverter.addr))
+            inverter_configs.append((serial_number, topic, inverter))
+
+    # Then connect to MQTT
+    print("Connecting to MQTT broker")
     client = MQTTClient(client_id=client_id)
     if tls:
         client.tls_set()
     if username:
         client.username_pw_set(username, password)
-
     client.connect(host=host, port=port, bind_address=interface or '')
+    client.loop_start()  # Starts handling MQTT traffic in separate thread
 
-    client.publish("inverter", payload="hihi")
-    # client.loop_start()  # Starts handling MQTT traffic in separate thread
-    client.loop_forever()
+    topics = ", ".join(x[1] for x in inverter_configs)
+    print("Startup complete, now publishing status data every {} seconds to topic(s): {}".format(interval, topics))
 
+    start_time = time()
+    while True:
+        for inverter_config in inverter_configs:
+            status = inverter_config[2].status()
+            message = json.dumps(status,
+                                 cls=DecimalEncoder,
+                                 separators=(',', ':'))  # Compact encoding
+            client.publish(topic=inverter_config[1], payload=message)
+
+        # This doesn't suffer from drifting, however it will skip messages when
+        #  a message takes longer than the interval.
+        sleep(interval - ((time() - start_time) % interval))
+
+
+def pvoutput():
+    pass
 
 # def pvoutput(args):
 #     if args.num < 1:

@@ -68,6 +68,7 @@ Commands:
   mqtt     Publish inverter data to an MQTT broker.
 ```
 
+#### Monitor
 ```
 $ samil monitor --help
 Usage: samil monitor [OPTIONS]
@@ -83,23 +84,38 @@ Options:
   --help                  Show this message and exit.
 ```
 
+#### MQTT
 ```
 $ samil mqtt --help
 Usage: samil mqtt [OPTIONS]
 
   Publish inverter data to an MQTT broker.
 
-Options:
-  -h, --host TEXT     MQTT broker hostname/IP address.  [default: localhost]
-  -p, --port INTEGER  MQTT broker port.  [default: 1883]
-  --client-id TEXT    Client ID used when connecting to the broker. If not
-                      provided, one will be randomly generated.
+  The default topic format is inverter/<serial number>/status, e.g.
+  inverter/DW413B8080/status. The message value is a JSON object with all
+  status data from the inverter. Example message value:
 
-  --tls               Enable SSL/TLS support.
-  --username TEXT     MQTT username.
-  --password TEXT     MQTT password.
-  --interface TEXT    IP address of local network interface to bind to.
-  --help              Show this message and exit.
+      {"operation_mode":"Normal","total_operation_time":45,
+      "pv1_input_power":2822.0,"pv2_input_power":0.0,"pv1_voltage":586.5,
+      "pv2_voltage":6.7,"pv1_current":4.8,"pv2_current":0.1,
+      "output_power":2589.0,"energy_today":21.2,"energy_total":77.0,
+      "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
+      "internal_temperature":35.0}
+
+Options:
+  -n, --inverters INTEGER  Number of inverters.  [default: 1]
+  -i, --interval FLOAT     Interval between status messages.  [default: 10.0]
+  -h, --host TEXT          MQTT broker hostname or IP.  [default: localhost]
+  -p, --port INTEGER       MQTT broker port.  [default: 1883]
+  --client-id TEXT         MQTT client ID. If not provided, one will be
+                           randomly generated.
+
+  --tls                    Enable MQTT SSL/TLS support.
+  --username TEXT          MQTT username.
+  --password TEXT          MQTT password.
+  --topic-prefix TEXT      MQTT topic prefix.  [default: inverter]
+  --interface TEXT         IP address of local network interface to bind to.
+  --help                   Show this message and exit.
 ```
 
 ## Info
