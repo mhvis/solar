@@ -39,7 +39,7 @@ The package can be installed from PyPI using `pip`:
 $ pip install samil
 ```
 
-For example on Ubuntu, first install `pip3`, then install `samil` for the current user:
+For example on Ubuntu and Raspberry Pi, first install `pip3`, then install `samil` for the current user:
 
 ```commandline
 $ sudo apt install python3-pip
