@@ -41,7 +41,6 @@ $ pip3 install --user samil
 ```
 
 After installing, invoke `samil --help` for usage info.
-
 If the `samil` command can't be found, first try to relogin.
 If that doesn't help you need to change the `PATH` variable
 with the following command and relogin to apply the change.
