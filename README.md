@@ -33,22 +33,28 @@ If you just need PVOutput.org uploading, you can also try the
 
 ## Installation
 
-The package can be installed from PyPI using `pip`:
-
-```commandline
-$ pip install samil
-```
-
-For example on Ubuntu and Raspberry Pi, first install `pip3`, then install `samil` for the current user:
+##### Ubuntu, Debian, Raspberry Pi
 
 ```commandline
 $ sudo apt install python3-pip
 $ pip3 install --user samil
 ```
 
-`samil` can then be found at `~/.local/bin/samil`.
-If you're not able to call `samil` from anywhere, try to relogin.
-If that didn't help, you might need to add `~/.local/bin` to your `PATH`.
+After installing, invoke `samil --help` for usage info.
+
+If the `samil` command can't be found, first try to relogin.
+If that doesn't help you'll need to change your `PATH` variable
+with the following command and relogin to apply the change.
+
+```commandline
+$ echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+```
+
+##### Other
+
+```commandline
+$ pip install samil
+```
 
 ## Usage
 
