@@ -33,7 +33,7 @@ If you just need PVOutput.org uploading, you can also try the
 
 ## Installation
 
-##### Ubuntu, Debian, Raspberry Pi
+##### Ubuntu/Debian/Raspberry Pi
 
 ```commandline
 $ sudo apt install python3-pip
@@ -43,7 +43,7 @@ $ pip3 install --user samil
 After installing, invoke `samil --help` for usage info.
 
 If the `samil` command can't be found, first try to relogin.
-If that doesn't help you'll need to change your `PATH` variable
+If that doesn't help you need to change the `PATH` variable
 with the following command and relogin to apply the change.
 
 ```commandline
