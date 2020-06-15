@@ -19,7 +19,10 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.4',  # Maybe >=3.6 is better, >=3.4 is required for paho-mqtt:tls_set()
+    # * 3.4 is required for paho-mqtt:tls_set()
+    # * 3.5 is required for socket.socketpair() in Windows, only used for test cases
+    # * CI only tests >=3.5
+    python_requires='>=3.5',
     entry_points={
         "console_scripts": [
             "samil = samil.cli:cli"

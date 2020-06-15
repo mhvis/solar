@@ -133,8 +133,11 @@ class Inverter:
         return response_id_actual, response_payload
 
     def send(self, identifier: bytes, payload: bytes):
-        """Constructs and sends a message to the inverter."""
-        # Todo: raise exception at EOF!!
+        """Constructs and sends a message to the inverter.
+
+        Raises:
+            BrokenPipeError: When the connection is closed.
+        """
         message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
         self.sock.send(message)
