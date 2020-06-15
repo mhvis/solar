@@ -5,8 +5,10 @@ For protocol information see https://github.com/mhvis/solar/wiki/Communication-p
 
 import logging
 from collections import OrderedDict
-from decimal import Decimal
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
+from typing import Tuple, Dict
+
+from samil.statustypes import status_types
 
 
 class Inverter:
@@ -16,25 +18,41 @@ class Inverter:
 
     The request methods are synchronous and return the response. When the
     connection is lost an exception is raised on the next time that a request
-    is made."""
+    is made.
+    """
 
     # Caches the format for inverter status messages
     _status_format = None
 
-    def __init__(self, sock, addr):
+    def __init__(self, sock: socket, addr):
+        """Constructor.
+
+        Args:
+            sock: The inverter socket, which is assumed to be connected.
+            addr: The inverter network address (currently not used).
+        """
         self.sock = sock
         self.addr = addr
 
     def __enter__(self):
+        """No-op."""
         return self.sock.__enter__()
 
     def __exit__(self, *args):
+        """Sends a disconnect message and closes the connection.
+
+        I believe that by using socket.shutdown, the inverter directly accepts
+        new connections.
+        """
         self.sock.shutdown(SHUT_RDWR)
         self.sock.__exit__(*args)
 
-    def model(self):
-        """Model information like the type, software version, and inverter serial number"""
-        ident, payload = self._send_receive(b'\x01\x03\x02', b'', b'\x01\x83')
+    def model(self) -> Dict:
+        """Gets model information from the inverter.
+
+        For all possible dictionary items, see the implementation.
+        """
+        ident, payload = self.request(b'\x01\x03\x02', b'', b'\x01\x83')
         device_types = {
             '1': 'Single-phase inverter',
             '2': 'Three-phase inverter',
@@ -44,23 +62,28 @@ class Inverter:
             '6': 'T-phase inverter of the three combined single-phase ones',
         }
         return OrderedDict(
-            device_type=device_types[_samil_string(payload[0:1])],
-            va_rating=_samil_string(payload[1:7]),
-            firmware_version=_samil_string(payload[7:12]),
-            model_name=_samil_string(payload[12:28]),
-            manufacturer=_samil_string(payload[28:44]),
-            serial_number=_samil_string(payload[44:60]),
-            communication_version=_samil_string(payload[60:65]),
-            other_version=_samil_string(payload[65:70]),
-            general=_samil_string(payload[70:71]),
+            device_type=device_types[decode_string(payload[0:1])],
+            va_rating=decode_string(payload[1:7]),
+            firmware_version=decode_string(payload[7:12]),
+            model_name=decode_string(payload[12:28]),
+            manufacturer=decode_string(payload[28:44]),
+            serial_number=decode_string(payload[44:60]),
+            communication_version=decode_string(payload[60:65]),
+            other_version=decode_string(payload[65:70]),
+            general=decode_string(payload[70:71]),
         )
 
-    def status(self):
-        """Status data like voltage, current, energy and temperature"""
+    def status(self) -> Dict:
+        """Gets current status data from the inverter.
+
+        Example dictionary keys are pv1_input_power, output_power,
+        energy_today. Values are usually of type int or decimal.Decimal.
+        For all possible values, see statustypes.py.
+        """
         if not self._status_format:
             self.status_format()
 
-        ident, payload = self._send_receive(b'\x01\x02\x02', b'', b'\x01\x82')
+        ident, payload = self.request(b'\x01\x02\x02', b'', b'\x01\x82')
 
         # Payload should be twice the size of the status format
         if 2 * len(self._status_format) != len(payload):
@@ -76,43 +99,57 @@ class Inverter:
         return status_values
 
     def status_format(self):
-        """Get the format used for the status data messages from the inverter.
+        """Gets the format used for the status data messages from the inverter.
 
         See the protocol information for details.
         """
-        ident, payload = self._send_receive(b'\x01\x00\x02', b'', b'\x01\x80')
+        ident, payload = self.request(b'\x01\x00\x02', b'', b'\x01\x80')
         self._status_format = payload  # Cache result
         return payload
 
     def history(self, start, end):
+        """Requests historical data from the inverter. Not yet implemented!"""
         raise NotImplementedError('Not yet implemented')
 
-    def _send_receive(self, identifier, payload, response_identifier=None):
-        """Send/receive pair utility method, if response_identifier is given this value is compared with the identifier
-        of the actual response and messages that have a wrong identifier are ignored. The comparison is done using
-        startswith."""
-        self._send(identifier, payload)
-        response_id_actual, response_payload = self._receive()
-        if response_identifier:
-            while not response_id_actual.startswith(response_identifier):
-                logging.warning('Unexpected response (%s, %s) for request %s, retrying',
-                                response_id_actual.hex(), response_payload.hex(), identifier.hex())
-                response_id_actual, response_payload = self._receive()
+    def request(self, identifier: bytes, payload: bytes, response_identifier=b"") -> Tuple[bytes, bytes]:
+        """Sends a message and returns the received response.
+
+        Args:
+            identifier: The message identifier (header).
+            payload: The message payload.
+            response_identifier: Messages with a response identifier that does
+                not start with the value given here are ignored. By default, no
+                messages are ignored, so the first new message is returned.
+
+        Returns:
+            A tuple with identifier and payload.
+        """
+        self.send(identifier, payload)
+        response_id_actual, response_payload = self.receive()
+        while not response_id_actual.startswith(response_identifier):
+            logging.warning('Unexpected response (%s, %s) for request %s, retrying',
+                            response_id_actual.hex(), response_payload.hex(), identifier.hex())
+            response_id_actual, response_payload = self.receive()
         return response_id_actual, response_payload
 
-    def _send(self, identifier, payload):
-        message = _samil_request(identifier, payload)
+    def send(self, identifier: bytes, payload: bytes):
+        """Constructs and sends a message to the inverter."""
+        # Todo: raise exception at EOF!!
+        message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
         self.sock.send(message)
 
-    def _receive(self):
+    def receive(self) -> Tuple[bytes, bytes]:
+        """Reads the next message from the inverter and deconstructs it.
+
+        Returns:
+            A tuple with identifier and payload.
+        """
+        # Todo: only recv one message at a time!
+        # Todo: raise exception at EOF!!
         message = self.sock.recv(4096)
         logging.debug('Received %s', message.hex())
-        return _samil_response(message)
-
-
-class InverterNotFoundError(Exception):
-    """No inverter was found on the network."""
+        return deconstruct_message(message)
 
 
 class InverterListener(socket):
@@ -146,7 +183,7 @@ class InverterListener(socket):
             InverterNotFoundError: When no inverter was found after all search
                 messages have been sent.
         """
-        message = _samil_request(b'\x00\x40\x02', b'I AM SERVER')
+        message = construct_message(b'\x00\x40\x02', b'I AM SERVER')
         self.settimeout(interval)
         # Broadcast socket
         with socket(AF_INET, SOCK_DGRAM) as bc:
@@ -166,195 +203,50 @@ class InverterListener(socket):
         raise InverterNotFoundError
 
 
-class BaseStatusType:
-    """Type of status value that may appear in the status data.
-
-    See the 'communication protocol' wiki page for details on status types.
-    """
-
-    def get_value(self, status_format, status_payload):
-        """Returns the value for this status type.
-
-        Args:
-            status_format: The status format byte-string as provided by the
-                inverter.
-            status_payload: The status data byte-string as provided by the
-                inverter.
-
-        Returns:
-            The value for this status type or None if the value is not present.
-        """
-        raise NotImplementedError("Abstract method")
-
-
-class BytesStatusType(BaseStatusType):
-    """Gets the bytes at given type ID positions."""
-
-    def __init__(self, *type_ids):
-        """The type IDs indicate the type IDs in the format string that we search for. Found values are concatenated."""
-        self.type_ids = type_ids
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        indices = [status_format.find(type_id) for type_id in self.type_ids]
-        if -1 in indices:
-            return None
-        values = [status_payload[i * 2:i * 2 + 2] for i in indices]
-        return b''.join(values)
-
-
-class IntStatusType(BytesStatusType):
-    def __init__(self, *type_ids, signed=False):
-        """See BytesStatusType for positional args, signed indicates if the status value is signed."""
-        super().__init__(*type_ids)
-        self.signed = signed
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        sequence = super().get_value(status_format, status_payload)
-        if sequence is None:
-            return None
-        return int.from_bytes(sequence, byteorder='big', signed=self.signed)
-
-
-class DecimalStatusType(IntStatusType):
-    """Status type that scales the result and returns a Decimal value."""
-
-    def __init__(self, *type_ids, scale: int = 0, signed: bool = False):
-        """Constructor.
-
-        Args:
-            *type_ids: Data type identifier.
-            scale: How to scale the (integer) value returned by the inverter.
-                The result is: <inverter value>*10^scale.
-            signed: Whether the value is signed.
-        """
-        super().__init__(*type_ids, signed=signed)
-        self.scale = scale
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        int_val = super().get_value(status_format, status_payload)
-        if int_val is None:
-            return None
-        return Decimal(int_val).scaleb(self.scale)
-
-
-class OperationModeStatusType(IntStatusType):
-
-    def __init__(self):
-        super().__init__(0x0c)
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        int_val = super().get_value(status_format, status_payload)
-        operating_modes = {0: 'Wait', 1: 'Normal', 2: 'Fault', 3: 'Permanent fault', 4: 'Check', 5: 'PV power off'}
-        return operating_modes[int_val]
-
-
-class OneOfStatusType(BaseStatusType):
-    """Returns the value of the first not-None status type value.
-
-    Can be used for the case when there are multiple type IDs that refer to the
-    same status type and are mutually exclusive.
-    """
-
-    def __init__(self, *status_types):
-        self.status_types = status_types
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        for status_type in self.status_types:
-            val = status_type.get_value(status_format, status_payload)
-            if val is not None:
-                return val
-        return None
-
-
-class IfPresentStatusType(BytesStatusType):
-    """Filters status type based on presence of another type ID."""
-
-    def __init__(self, type_id, presence, status_type):
-        """Constructor.
-
-        Args:
-            type_id: The type ID to check presence for.
-            presence: If the type ID must be present (True) or must not be
-                present (False).
-            status_type: The status type value that will be returned if the
-                above type ID is present.
-        """
-        super().__init__(type_id)
-        self.presence = presence
-        self.status_type = status_type
-
-    def get_value(self, status_format, status_payload):
-        """See base class."""
-        actual_presence = super().get_value(status_format, status_payload) is not None
-        if self.presence == actual_presence:
-            return self.status_type.get_value(status_format, status_payload)
-        return None
-
-
-status_types = OrderedDict(
-    operation_mode=OperationModeStatusType(),
-    total_operation_time=IntStatusType(0x09, 0x0a),
-    pv1_input_power=DecimalStatusType(0x27),
-    pv2_input_power=DecimalStatusType(0x28),
-    pv1_voltage=DecimalStatusType(0x01, scale=-1),
-    pv2_voltage=DecimalStatusType(0x02, scale=-1),
-    pv1_current=DecimalStatusType(0x04, scale=-1),
-    pv2_current=DecimalStatusType(0x05, scale=-1),
-    output_power=OneOfStatusType(DecimalStatusType(0x0b), DecimalStatusType(0x34)),
-    energy_today=DecimalStatusType(0x11, scale=-2),
-    energy_total=OneOfStatusType(DecimalStatusType(0x07, 0x08, scale=-1), DecimalStatusType(0x35, 0x36, scale=-1)),
-    grid_voltage=IfPresentStatusType(0x51, False, DecimalStatusType(0x32, scale=-1)),
-    grid_current=IfPresentStatusType(0x51, False, DecimalStatusType(0x31, scale=-1)),
-    grid_frequency=IfPresentStatusType(0x51, False, DecimalStatusType(0x33, scale=-2)),
-    grid_voltage_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x32, scale=-1)),
-    grid_current_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x31, scale=-1)),
-    grid_frequency_r_phase=IfPresentStatusType(0x51, True, DecimalStatusType(0x33, scale=-2)),
-    grid_voltage_s_phase=DecimalStatusType(0x52, scale=-1),
-    grid_current_s_phase=DecimalStatusType(0x51, scale=-1),
-    grid_frequency_s_phase=DecimalStatusType(0x53, scale=-2),
-    grid_voltage_t_phase=DecimalStatusType(0x72, scale=-1),
-    grid_current_t_phase=DecimalStatusType(0x71, scale=-1),
-    grid_frequency_t_phase=DecimalStatusType(0x73, scale=-2),
-    internal_temperature=DecimalStatusType(0x00, signed=True, scale=-1),
-    heatsink_temperature=DecimalStatusType(0x2f, signed=True, scale=-1),
-)
-
-
-def _samil_string(val):
-    """Decodes a possibly null terminated byte array to a string using ASCII and strips whitespace"""
+def decode_string(val: bytes) -> str:
+    """Decodes a possibly null terminated byte sequence to a string using ASCII and strips whitespace."""
     return val.partition(b'\x00')[0].decode('ascii').strip()
 
 
-def _checksum(message):
-    """Calculate checksum for message, message should not include the checksum"""
+def calculate_checksum(message: bytes) -> bytes:
+    """Calculates the checksum for a message.
+
+    The message should not have a checksum appended to it.
+
+    Returns:
+        The checksum, as a byte sequence of length 2.
+    """
     return sum(message).to_bytes(2, byteorder='big')
 
 
-def _samil_request(identifier, payload):
-    """Construct a request message from identifier and payload"""
+def construct_message(identifier: bytes, payload: bytes) -> bytes:
+    """Constructs an inverter message from identifier and payload."""
     start = b'\x55\xaa'
     payload_size = len(payload).to_bytes(2, byteorder='big')
     message = start + identifier + payload_size + payload
-    checksum = _checksum(message)
+    checksum = calculate_checksum(message)
     return message + checksum
 
 
-def _samil_response(message):
-    """Tear down a response, returns a tuple with (identifier, payload)"""
+def deconstruct_message(message: bytes) -> Tuple[bytes, bytes]:
+    """Deconstructs an inverter message into identifier and payload.
+
+    Raises:
+        ValueError: When the checksum is invalid.
+    """
     identifier = message[2:5]
     payload_size = int.from_bytes(message[5:7], byteorder='big')
     payload = message[7:7 + payload_size]
     checksum = message[7 + payload_size:7 + payload_size + 2]
-    if checksum != _checksum(message[:7 + payload_size]):
-        logging.warning('Checksum invalid for message %s', message.hex())
+    if checksum != calculate_checksum(message[:7 + payload_size]):
+        raise ValueError('Checksum invalid for message %s', message.hex())
     return identifier, payload
 
 
 class KeepAliveInverter(Inverter):
     """Inverter that is kept alive by sending a request every couple seconds."""
     pass
+
+
+class InverterNotFoundError(Exception):
+    """No inverter was found on the network."""

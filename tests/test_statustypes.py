@@ -1,27 +1,9 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from samil.inverter import _checksum, _samil_request, _samil_response, DecimalStatusType, _samil_string, \
+from samil.inverter import decode_string
+from samil.statustypes import DecimalStatusType, \
     OperationModeStatusType, OneOfStatusType, BytesStatusType, IfPresentStatusType
-
-
-class MessageTestCase(TestCase):
-    def test_checksum(self):
-        message = bytes.fromhex("55 aa 01 89 00 00 04 55 0c 00 00")
-        checksum = bytes.fromhex("01 ee")
-        self.assertEqual(checksum, _checksum(message))
-
-    def test_samil_request(self):
-        identifier = b'\x06\x01\x02'
-        payload = b'\x10\x10'
-        expect = bytes.fromhex("55 aa 06 01 02 00 02 10 10 01 2a")
-        self.assertEqual(expect, _samil_request(identifier, payload))
-
-    def test_samil_response(self):
-        message = bytes.fromhex("55 aa 01 89 00 00 04 55 0c 00 00 01 ee")
-        identifier, payload = _samil_response(message)
-        self.assertEqual(b'\x01\x89\x00', identifier)
-        self.assertEqual(b'\x55\x0c\x00\x00', payload)
 
 
 class BytesStatusTypeTestCase(TestCase):
@@ -61,7 +43,7 @@ class DecimalStatusTypeTestCase(TestCase):
 class StringDecodeTestCase(TestCase):
     def test_samil_string(self):
         expect = "V1"
-        actual = _samil_string(b' V1 \x00 ')
+        actual = decode_string(b' V1 \x00 ')
         self.assertEqual(expect, actual)
 
 

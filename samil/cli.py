@@ -8,8 +8,7 @@ from time import time, sleep
 import click
 from paho.mqtt.client import Client as MQTTClient
 
-from samil import InverterListener
-from samil.inverter import InverterNotFoundError
+from samil.inverter import InverterNotFoundError, InverterListener
 
 
 # @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -125,6 +124,7 @@ class DecimalEncoder(json.JSONEncoder):
     """
 
     def default(self, o):
+        """See base class."""
         if isinstance(o, Decimal):
             return float(o)
         return super(DecimalEncoder, self).default(o)
@@ -132,7 +132,7 @@ class DecimalEncoder(json.JSONEncoder):
 
 @cli.command()
 @click.option('--inverters', '-n', default=1, help="Number of inverters.", show_default=True)
-@click.option('--interval', '-i', default=10.0, help="Interval between status messages.", show_default=True)
+@click.option('--interval', '-i', default=10.0, help="Interval between status messages in seconds.", show_default=True)
 @click.option('--host', '-h', default="localhost", help="MQTT broker hostname or IP.", show_default=True)
 @click.option('--port', '-p', default=1883, help="MQTT broker port.", show_default=True)
 @click.option('--client-id',
@@ -199,15 +199,44 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
         sleep(interval - ((time() - start_time) % interval))
 
 
-def pvoutput():
+@cli.command()
+@click.argument('system-id')
+@click.argument('api-key')
+@click.option('--inverters', '-n',
+              default=1,
+              help="Number of inverters. If more than 1, the data will be aggregated.",
+              show_default=True)
+@click.option('--interval', '-i',
+              type=int,
+              help="Interval between status uploads in minutes (should be 5, 10 or 15 minutes). "
+                   "If not specified, only uploads once and then exits.")
+@click.option('--interface', default="", help="IP address of local network interface to bind to.")
+def pvoutput(system_id, api_key, inverters: int, interval: int, interface):
+    """Upload inverter status to a PVOutput.org system.
+
+    Specify the PVOutput system using the SYSTEM_ID and API_KEY arguments. By
+    default, this command connects to the inverter to get the current status
+    data, uploads this to PVOutput and exits. This can be used with
+    e.g. cron to upload status data every 5 minutes.
+
+    If you don't want to use cron, you can specify the --interval option which
+    will make the application upload status data on the specified interval.
+    With this mode the application will stay connected to the inverters
+    in between uploads.
+
+    For multiple inverters, specify the --inverters option to aggregate the data
+    and upload to the same PVOutput system. Energy and power will be summed,
+    temperature and voltage will be averaged. To upload to multiple PVOutput
+    systems, run this application once for each system.
+    """
+    # try:
+    #
+    # with InverterListener(interface_ip=interface) as listener:
+    #     inverter = listener.accept_inverter()
     pass
 
+
 # def pvoutput(args):
-#     if args.num < 1:
-#         raise ValueError('Invalid number of inverters')
-#     # Set logging
-#     loglevel = logging.ERROR if args.quiet else logging.DEBUG if args.verbose else logging.INFO
-#     logging.basicConfig(format='%(levelname)s:%(module)s:%(message)s', level=loglevel)
 #     # Search for the right inverter
 #     with InverterListener(interface_ip=args.interface) as listener:
 #         selected_inverters = []

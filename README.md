@@ -144,7 +144,7 @@ For documentation you will need to read through the source code.
 Example to get started:
 
 ```python
-from samil import InverterListener
+from samil.inverter import InverterListener
 
 with InverterListener() as listener:
     # Search for an inverter
