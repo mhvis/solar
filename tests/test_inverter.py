@@ -1,3 +1,4 @@
+import sys
 from queue import Queue
 from socket import socketpair
 from threading import Thread
@@ -94,8 +95,6 @@ class InverterConnectionTestCase(TestCase):
         self.assertEqual(b"\x00\x01\x02", ident)
         self.assertEqual(b"", payload)
 
-
-import sys
 
 # Ultimate hack to prevent the test runs on Linux so that it only runs on Windows
 # Todo: remove when test cases work
