@@ -47,7 +47,13 @@ class Inverter:
         I believe that by using socket.shutdown, the inverter directly accepts
         new connections.
         """
-        self.sock.shutdown(SHUT_RDWR)
+        # The socket might have been closed already for some reason, in which
+        #  case shutdown will throw OSError 107.
+        try:
+            self.sock.shutdown(SHUT_RDWR)
+        except OSError as e:
+            if e.errno != 107:
+                raise e
         self.sock_file.__exit__(*args)  # Doesn't do anything I think
         self.sock.__exit__(*args)
 
@@ -240,14 +246,14 @@ def read_message(stream: BinaryIO) -> Tuple[bytes, bytes]:
         Tuple with identifier and payload of the message.
 
     Raises:
-        EOFError: When the connection is closed (EOF is encountered).
+        InverterEOFError: When the connection is lost (EOF is encountered).
         ValueError: When the message has an incorrect format, e.g. checksum is
             invalid or the first two bytes are not '55 aa'.
     """
     # Message start + check for EOF
     start = stream.read(2)
     if start == b"":
-        raise EOFError
+        raise InverterEOFError
     if start != b"\x55\xaa":
         raise ValueError("Invalid start of message")
 
@@ -277,3 +283,10 @@ class KeepAliveInverter(Inverter):
 
 class InverterNotFoundError(Exception):
     """No inverter was found on the network."""
+
+
+class InverterEOFError(Exception):
+    """The connection with the inverter has been lost.
+
+    Raised when EOF is encountered.
+    """

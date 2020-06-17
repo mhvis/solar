@@ -4,7 +4,7 @@ from threading import Thread
 from time import sleep
 from unittest import TestCase
 
-from samil.inverter import calculate_checksum, construct_message, Inverter
+from samil.inverter import calculate_checksum, construct_message, Inverter, InverterEOFError
 
 
 class MessageTestCase(TestCase):
@@ -55,7 +55,7 @@ class InverterConnectionTestCase(TestCase):
     def test_eof_on_recv(self):
         """Tests if exception is raised for closed connection when receiving."""
         self.sock.close()  # Mimic inverter closed connection
-        with self.assertRaises(EOFError):
+        with self.assertRaises(InverterEOFError):
             self.inverter.receive()
 
     def test_multiple_messages_received_at_once(self):
