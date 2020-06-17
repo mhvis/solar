@@ -138,7 +138,7 @@ Options:
 ## Info
 
 The protocol used by these inverters is described
-[here](https://github.com/mhvis/solar/wiki/Communication-protocol).
+[here](https://mhvis.github.io/solar/communication-protocol.html).
 
 The following units are used for the status values:
 

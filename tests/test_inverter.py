@@ -4,7 +4,7 @@ from threading import Thread
 from time import sleep
 from unittest import TestCase
 
-from samil.inverter import calculate_checksum, construct_message, deconstruct_message, Inverter
+from samil.inverter import calculate_checksum, construct_message, Inverter
 
 
 class MessageTestCase(TestCase):
@@ -18,12 +18,6 @@ class MessageTestCase(TestCase):
         payload = b'\x10\x10'
         expect = bytes.fromhex("55 aa 06 01 02 00 02 10 10 01 2a")
         self.assertEqual(expect, construct_message(identifier, payload))
-
-    def test_deconstruct(self):
-        message = bytes.fromhex("55 aa 01 89 00 00 04 55 0c 00 00 01 ee")
-        identifier, payload = deconstruct_message(message)
-        self.assertEqual(b'\x01\x89\x00', identifier)
-        self.assertEqual(b'\x55\x0c\x00\x00', payload)
 
 
 message = b"\x55\xaa\x00\x01\x02\x00\x00\x01\x02"  # Sample inverter message
@@ -40,6 +34,7 @@ class InverterConnectionTestCase(TestCase):
         """Creates socket pair for local (app) and remote ('real' inverter) side."""
         local_sock, remote_sock = socketpair()  # We apparently can't use family=AF_INET on Linux
         local_sock.settimeout(1.0)
+        remote_sock.settimeout(1.0)
         self.inverter = Inverter(local_sock, None)
         # This sock mimics the actual inverter, i.e. the remote side of the
         #  connection. Send messages on it to mimic the actual inverter sending
@@ -60,7 +55,7 @@ class InverterConnectionTestCase(TestCase):
     def test_eof_on_recv(self):
         """Tests if exception is raised for closed connection when receiving."""
         self.sock.close()  # Mimic inverter closed connection
-        with self.assertRaises(BrokenPipeError):  # Todo! Update exception class to the right one
+        with self.assertRaises(EOFError):
             self.inverter.receive()
 
     def test_multiple_messages_received_at_once(self):
@@ -93,3 +88,9 @@ class InverterConnectionTestCase(TestCase):
         ident, payload = queue.get(timeout=1.0)
         self.assertEqual(b"\x00\x01\x02", ident)
         self.assertEqual(b"", payload)
+
+    def test_send(self):
+        """Tests whether a message from the app will arrive at the receiver."""
+        self.inverter.send(b"\x00\x01\x02", b"")
+        received_message = self.sock.recv(4096)
+        self.assertEqual(message, received_message)

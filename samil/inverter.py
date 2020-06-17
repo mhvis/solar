@@ -6,7 +6,7 @@ For protocol information see https://github.com/mhvis/solar/wiki/Communication-p
 import logging
 from collections import OrderedDict
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
-from typing import Tuple, Dict
+from typing import Tuple, Dict, BinaryIO
 
 from samil.statustypes import status_types
 
@@ -32,12 +32,14 @@ class Inverter:
             addr: The inverter network address (currently not used).
         """
         self.sock = sock
-        # self.sock_file = sock.makefile('rwb')
+        self.sock_file = sock.makefile('rwb')
         self.addr = addr
 
     def __enter__(self):
         """No-op."""
-        return self.sock.__enter__()
+        self.sock.__enter__()
+        self.sock_file.__enter__()
+        return self
 
     def __exit__(self, *args):
         """Sends a disconnect message and closes the connection.
@@ -46,6 +48,7 @@ class Inverter:
         new connections.
         """
         self.sock.shutdown(SHUT_RDWR)
+        self.sock_file.__exit__(*args)  # Doesn't do anything I think
         self.sock.__exit__(*args)
 
     def model(self) -> Dict:
@@ -141,19 +144,15 @@ class Inverter:
         """
         message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
-        self.sock.send(message)
+        self.sock_file.write(message)
+        self.sock_file.flush()
 
     def receive(self) -> Tuple[bytes, bytes]:
-        """Reads the next message from the inverter and deconstructs it.
+        """Reads and returns the next message from the inverter.
 
-        Returns:
-            A tuple with identifier and payload.
+        See read_message!
         """
-        # Todo: only recv one message at a time!
-        # Todo: raise exception at EOF!!
-        message = self.sock.recv(4096)
-        logging.debug('Received %s', message.hex())
-        return deconstruct_message(message)
+        return read_message(self.sock_file)
 
 
 class InverterListener(socket):
@@ -232,18 +231,40 @@ def construct_message(identifier: bytes, payload: bytes) -> bytes:
     return message + checksum
 
 
-def deconstruct_message(message: bytes) -> Tuple[bytes, bytes]:
-    """Deconstructs an inverter message into identifier and payload.
+def read_message(stream: BinaryIO) -> Tuple[bytes, bytes]:
+    """Reads the next inverter message from a file-like object/stream.
+
+    Returns:
+        Tuple with identifier and payload of the message.
 
     Raises:
-        ValueError: When the checksum is invalid.
+        EOFError: When the connection is closed (EOF is encountered).
+        ValueError: When the message has an incorrect format, e.g. checksum is
+            invalid or the first two bytes are not '55 aa'.
     """
-    identifier = message[2:5]
-    payload_size = int.from_bytes(message[5:7], byteorder='big')
-    payload = message[7:7 + payload_size]
-    checksum = message[7 + payload_size:7 + payload_size + 2]
-    if checksum != calculate_checksum(message[:7 + payload_size]):
+    # Message start + check for EOF
+    start = stream.read(2)
+    if start == b"":
+        raise EOFError
+    if start != b"\x55\xaa":
+        raise ValueError("Invalid start of message")
+
+    # Identifier
+    identifier = stream.read(3)
+
+    # Payload
+    payload_size_bytes = stream.read(2)
+    payload_size = int.from_bytes(payload_size_bytes, byteorder='big')
+    if payload_size < 0 or payload_size > 4096:  # Sanity check for strange payload size values
+        raise ValueError("Unexpected payload size value")
+    payload = stream.read(payload_size)
+
+    # Checksum
+    checksum = stream.read(2)
+    message = start + identifier + payload_size_bytes + payload
+    if checksum != calculate_checksum(message):
         raise ValueError('Checksum invalid for message %s', message.hex())
+
     return identifier, payload
 
 
