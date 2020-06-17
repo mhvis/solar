@@ -32,6 +32,7 @@ class Inverter:
             addr: The inverter network address (currently not used).
         """
         self.sock = sock
+        # self.sock_file = sock.makefile('rwb')
         self.addr = addr
 
     def __enter__(self):

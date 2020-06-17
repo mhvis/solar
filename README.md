@@ -24,8 +24,6 @@ If you just need PVOutput.org uploading, you can also try the
 * Upload to PVOutput.org
 * Publish to MQTT broker
 
-
-
 ## Requirements
 
 * Python 3
@@ -57,6 +55,8 @@ $ pip install samil
 
 ## Usage
 
+All possible commands:
+
 ```
 $ samil --help
 Usage: samil [OPTIONS] COMMAND [ARGS]...
@@ -74,6 +74,11 @@ Commands:
 ```
 
 #### Monitor
+
+Running `samil monitor` will search for an inverter and print model and status info.
+
+All possible options can be listed using `samil monitor --help`:
+
 ```
 $ samil monitor --help
 Usage: samil monitor [OPTIONS]
@@ -90,6 +95,13 @@ Options:
 ```
 
 #### MQTT
+
+Sends inverter status messages to an MQTT broker every couple seconds.
+
+Example command: `samil mqtt -h 192.168.1.2 -p 1883 --username user --password pw -n 2`
+
+Options and usage information:
+
 ```
 $ samil mqtt --help
 Usage: samil mqtt [OPTIONS]
