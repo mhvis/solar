@@ -144,7 +144,9 @@ class Inverter:
         """
         message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
-        self.sock_file.write(message)
+        written = self.sock_file.write(message)
+        if written == 0:
+            raise BrokenPipeError
         self.sock_file.flush()
 
     def receive(self) -> Tuple[bytes, bytes]:
