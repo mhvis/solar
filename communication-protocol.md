@@ -1,3 +1,7 @@
+---
+title: Communication protocol
+---
+
 This document describes my findings on the communication protocol used for
 talking with a Samil Power inverter over the network.
 
