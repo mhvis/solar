@@ -4,6 +4,7 @@ import logging
 import sys
 from decimal import Decimal
 from time import time, sleep
+from typing import Iterable, List
 
 import click
 from paho.mqtt.client import Client as MQTTClient
@@ -12,6 +13,9 @@ from samil.inverter import InverterNotFoundError, InverterListener
 
 
 # @click.group(context_settings={"help_option_names": ["-h", "--help"]})
+from samil.util import create_inverter_listener, connect_to_inverters
+
+
 @click.group()
 @click.option('--debug', is_flag=True, help="Enable debug output.")
 @click.version_option()
@@ -202,33 +206,59 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
 @cli.command()
 @click.argument('system-id')
 @click.argument('api-key')
-@click.option('--inverters', '-n',
-              default=1,
-              help="Number of inverters. If more than 1, the data will be aggregated.",
-              show_default=True)
 @click.option('--interval', '-i',
               type=int,
-              help="Interval between status uploads in minutes (should be 5, 10 or 15 minutes). "
-                   "If not specified, only uploads once and then exits.")
+              help="Interval between status uploads in minutes, should be 5, 10 or 15. "
+                   "If not specified, only does a single upload.")
 @click.option('--interface', default="", help="IP address of local network interface to bind to.")
-def pvoutput(system_id, api_key, inverters: int, interval: int, interface):
+@click.option('-n',
+              help="Connect to n inverters.",
+              type=int)
+@click.option('--ip',
+              help="Connect to inverters with the given IP address(es) only. Can be given multiple times.",
+              multiple=True)
+@click.option('--serial',
+              help="Connect to inverters with the given serial number(s) only. Can be given multiple times.",
+              multiple=True)
+def pvoutput(system_id, api_key, interval: int, interface, n: int, ip: List[str], serial: List[str]):
     """Upload inverter status to a PVOutput.org system.
 
-    Specify the PVOutput system using the SYSTEM_ID and API_KEY arguments. By
-    default, this command connects to the inverter to get the current status
-    data, uploads this to PVOutput and exits. This can be used with
-    e.g. cron to upload status data every 5 minutes.
+    Specify the PVOutput system using the SYSTEM_ID and API_KEY arguments. The
+    command will connect to the inverter, upload the current status data and
+    exit. Use something like cron to upload status data every 5 minutes.
 
-    If you don't want to use cron, you can specify the --interval option which
-    will make the application upload status data on the specified interval.
+    If you don't want to use cron, specify the --interval option to
+    make the application upload status data on the specified interval.
     With this mode the application will stay connected to the inverters
     in between uploads.
 
-    For multiple inverters, specify the --inverters option to aggregate the data
-    and upload to the same PVOutput system. Energy and power will be summed,
-    temperature and voltage will be averaged. To upload to multiple PVOutput
-    systems, run this application once for each system.
+    For multiple inverters, specify the inverters to connect to using one of
+    -n, --ip or --serial. Data will be aggregated correctly before uploading to
+    PVOutput, energy is summed, voltage and temperature are averaged. To upload
+    to multiple PVOutput systems, run this application once for each system.
     """
+    if bool(n) + bool(ip) + bool(serial) > 1:
+        raise ValueError("Arguments -n, --ip and --serial are mutually exclusive")
+
+    # Print info messages (at least)
+    if logging.root.level > logging.INFO:
+        logging.basicConfig(level=logging.INFO)
+
+    # Determine correct nr of inverters
+    count = n if n else len(ip) if ip else len(serial) if serial else 1
+    # Determine filter function
+    def keep_ip(inverter): return inverter.addr[0] in ip
+    def keep_serial(inverter): return inverter.model()["serial_number"] in serial
+    keep = keep_ip if ip else keep_serial if serial else None
+
+    # Connect to inverters
+    listener = create_inverter_listener(interface_ip=interface)
+    with listener:
+        logging.info("Searching for inverters")
+        inverters = connect_to_inverters(listener, count, keep)
+    sleep(1000)
+
+
     # try:
     #
     # with InverterListener(interface_ip=interface) as listener:

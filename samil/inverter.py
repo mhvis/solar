@@ -36,16 +36,16 @@ class Inverter:
         self.addr = addr
 
     def __enter__(self):
-        """No-op."""
-        self.sock.__enter__()
-        self.sock_file.__enter__()
         return self
 
     def __exit__(self, *args):
+        self.disconnect()
+
+    def disconnect(self):
         """Sends a disconnect message and closes the connection.
 
-        I believe that by using socket.shutdown, the inverter directly accepts
-        new connections.
+        By using socket.shutdown it appears that the inverter directly will
+        accepts new connections.
         """
         # The socket might have been closed already for some reason, in which
         #  case shutdown will throw OSError 107.
@@ -54,8 +54,8 @@ class Inverter:
         except OSError as e:
             if e.errno != 107:
                 raise e
-        self.sock_file.__exit__(*args)  # Doesn't do anything I think
-        self.sock.__exit__(*args)
+        self.sock_file.close()
+        self.sock.close()
 
     def model(self) -> Dict:
         """Gets model information from the inverter.
@@ -118,7 +118,7 @@ class Inverter:
         return payload
 
     def history(self, start, end):
-        """Requests historical data from the inverter. Not yet implemented!"""
+        """Requests historical data from the inverter."""
         raise NotImplementedError('Not yet implemented')
 
     def request(self, identifier: bytes, payload: bytes, response_identifier=b"") -> Tuple[bytes, bytes]:
@@ -150,15 +150,13 @@ class Inverter:
         """
         message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
-        written = self.sock_file.write(message)
-        if written == 0:
-            raise BrokenPipeError
+        self.sock_file.write(message)
         self.sock_file.flush()
 
     def receive(self) -> Tuple[bytes, bytes]:
         """Reads and returns the next message from the inverter.
 
-        See read_message!
+        See read_message.
         """
         return read_message(self.sock_file)
 
@@ -202,7 +200,7 @@ class InverterListener(socket):
             bc.bind((self.interface_ip, 0))
 
             for i in range(advertisements):
-                logging.info('Searching for inverter')
+                logging.debug('Sending server broadcast message')
                 bc.sendto(message, ('<broadcast>', 1300))
                 try:
                     sock, addr = self.accept()
@@ -275,10 +273,6 @@ def read_message(stream: BinaryIO) -> Tuple[bytes, bytes]:
 
     return identifier, payload
 
-
-class KeepAliveInverter(Inverter):
-    """Inverter that is kept alive by sending a request every couple seconds."""
-    pass
 
 
 class InverterNotFoundError(Exception):
