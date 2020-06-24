@@ -13,7 +13,7 @@ from paho.mqtt.client import Client as MQTTClient
 from samil.inverter import InverterNotFoundError, InverterFinder, Inverter
 # @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 from samil.pvoutput import add_status
-from samil.util import connect_to_inverters, get_bound_inverter_finder
+from samil.util import connect_to_inverters, get_bound_inverter_finder, KeepAliveInverter
 
 
 @click.group()
@@ -37,10 +37,6 @@ def monitor(interval: float, interface: str):
     When you have multiple inverters, run this command multiple times to
     connect to all inverters.
     """
-    if interval > 20:
-        # Todo
-        raise ValueError("Interval of more than 20 seconds is not yet supported (requires keep-alive messages).")
-
     _model_keys = {
         'device_type': 'Device type',
         'va_rating': 'VA rating',
@@ -95,10 +91,10 @@ def monitor(interval: float, interface: str):
         t = [(form[0], '{}{}{}'.format(v, ' ' if form[1] else '', form[1])) for form, v in t]
         return _format_two_tuple(t)
 
-    with InverterFinder(interface_ip=interface or '') as listener:
+    with InverterFinder(interface_ip=interface or '') as finder:
         print("Searching for inverter")
         try:
-            inverter = listener.accept_inverter()
+            inverter = KeepAliveInverter(*finder.find_inverter())
         except InverterNotFoundError:
             print("Could not find inverter")
             sys.exit()
