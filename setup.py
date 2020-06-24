@@ -21,6 +21,7 @@ setup(
     ],
     # * 3.4 is required for paho-mqtt:tls_set()
     # * 3.5 is required for socket.socketpair() in Windows, only used for test cases
+    # * 3.5 is required for socket.listen() optional backlog parameter
     # * CI only tests >=3.5
     python_requires='>=3.5',
     entry_points={

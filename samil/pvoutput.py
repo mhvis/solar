@@ -1,15 +1,24 @@
 """PVOutput.org methods."""
-
+import logging
 from datetime import datetime
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-def pvoutput_add_status(system, api_key, energy_gen=None, power_gen=None, energy_con=None, power_con=None, temp=None,
-                        voltage=None, cumulative=False, net=False):
+def add_status(system, api_key, energy_gen=None, power_gen=None, energy_con=None, power_con=None, temp=None,
+               voltage=None, cumulative=False, net=False):
     """Upload status data to PVOutput.org.
 
-    See API doc: https://pvoutput.org/help.html#api-addstatus.
+    Values can be integer, float or Decimal. See API doc:
+    https://pvoutput.org/help.html#api-addstatus.
+
+    Args:
+        energy_gen: Energy generation in watt hours.
+        power_gen: Power generation in watts.
+        energy_con: Energy consumption in watt hours.
+        power_con: Power consumption in watts.
+        temp: Temperature in celcius.
+        voltage: Voltage in volts.
 
     Returns:
         Response from PVOutput.org.
@@ -30,6 +39,8 @@ def pvoutput_add_status(system, api_key, energy_gen=None, power_gen=None, energy
         data['c1'] = '1'
     if net:
         data['n'] = '1'
+
+    logging.info("Uploading status data: %s", data)
 
     data = urlencode(data).encode('ascii')
     req = Request('http://pvoutput.org/service/r2/addstatus.jsp', data)

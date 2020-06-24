@@ -6,7 +6,7 @@ For protocol information see https://github.com/mhvis/solar/wiki/Communication-p
 import logging
 from collections import OrderedDict
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
-from typing import Tuple, Dict, BinaryIO
+from typing import Tuple, Dict, BinaryIO, Any
 
 from samil.statustypes import status_types
 
@@ -19,6 +19,8 @@ class Inverter:
     The request methods are synchronous and return the response. When the
     connection is lost an exception is raised on the next time that a request
     is made.
+
+    Methods are not thread-safe.
     """
 
     # Caches the format for inverter status messages
@@ -36,23 +38,27 @@ class Inverter:
         self.addr = addr
 
     def __enter__(self):
+        """Returns self."""
         return self
 
     def __exit__(self, *args):
+        """See self.disconnect."""
         self.disconnect()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Sends a disconnect message and closes the connection.
 
         By using socket.shutdown it appears that the inverter directly will
         accepts new connections.
         """
-        # The socket might have been closed already for some reason, in which
-        #  case shutdown will throw OSError 107.
         try:
             self.sock.shutdown(SHUT_RDWR)
         except OSError as e:
-            if e.errno != 107:
+            # The socket might have been closed already for some reason, in
+            # which case some OSError will be thrown:
+            #
+            # * [Errno 9] Bad file descriptor
+            if e.errno != 107 and e.errno != 9:
                 raise e
         self.sock_file.close()
         self.sock.close()
@@ -121,32 +127,34 @@ class Inverter:
         """Requests historical data from the inverter."""
         raise NotImplementedError('Not yet implemented')
 
-    def request(self, identifier: bytes, payload: bytes, response_identifier=b"") -> Tuple[bytes, bytes]:
+    def request(self, identifier: bytes, payload: bytes, expected_response_id=b"") -> Tuple[bytes, bytes]:
         """Sends a message and returns the received response.
 
         Args:
             identifier: The message identifier (header).
             payload: The message payload.
-            response_identifier: Messages with a response identifier that does
-                not start with the value given here are ignored. By default, no
-                messages are ignored, so the first new message is returned.
+            expected_response_id: The response identifier is checked to see
+                whether it starts with the value given here. If it does not, an
+                exception is raised.
 
         Returns:
             A tuple with identifier and payload.
         """
         self.send(identifier, payload)
-        response_id_actual, response_payload = self.receive()
-        while not response_id_actual.startswith(response_identifier):
-            logging.warning('Unexpected response (%s, %s) for request %s, retrying',
-                            response_id_actual.hex(), response_payload.hex(), identifier.hex())
-            response_id_actual, response_payload = self.receive()
-        return response_id_actual, response_payload
+        response_id, response_payload = self.receive()
+        if not response_id.startswith(expected_response_id):
+            raise RuntimeError("Request failed, got unexpected inverter response {}, {} for request {}, {}".format(
+                response_id.hex(), response_payload.hex(), identifier.hex(), payload.hex()
+            ))
+        return response_id, response_payload
 
     def send(self, identifier: bytes, payload: bytes):
         """Constructs and sends a message to the inverter.
 
         Raises:
             BrokenPipeError: When the connection is closed.
+            ValueError: When the connection was already closed, with a message
+                'write to closed file'.
         """
         message = construct_message(identifier, payload)
         logging.debug('Sending %s', message.hex())
@@ -161,24 +169,50 @@ class Inverter:
         return read_message(self.sock_file)
 
 
-class InverterListener(socket):
-    """Listener for new inverter connections."""
+class InverterFinder:
+    """Class for establishing new inverter connections.
 
-    def __init__(self, interface_ip='', **kwargs):
-        """Creates listener socket for the incoming inverter connections.
+    Use in a 'with' statement (for the listener socket).
+    """
+
+    def __init__(self, interface_ip=''):
+        """Create instance.
 
         Args:
-            interface_ip: Bind interface IP.
-            **kwargs: Will be passed on to socket.
+            interface_ip: Bind interface IP for listener and broadcast sockets.
         """
-        super().__init__(AF_INET, SOCK_STREAM, **kwargs)
         self.interface_ip = interface_ip
-        # Allow socket bind conflicts
-        self.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        self.bind((interface_ip, 1200))
-        self.listen(5)
+        self.listen_sock = socket(AF_INET, SOCK_STREAM)
+        # Allow socket bind conflicts.
+        # This makes it possible to directly rebind to the same port.
+        self.listen_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        self._listening = False
 
-    def accept_inverter(self, advertisements=10, interval=5.0) -> Inverter:
+    def __enter__(self):
+        """See listen method."""
+        self.listen()
+        return self
+
+    def __exit__(self, *args):
+        """See close method."""
+        self.close()
+
+    def listen(self):
+        """Binds the listener socket and starts listening.
+
+        Needs to be called before searching for inverters. Use 'with' statement
+        to have this called automatically.
+        """
+        if not self._listening:
+            self.listen_sock.bind((self.interface_ip, 1200))
+            self.listen_sock.listen()
+            self._listening = True
+
+    def close(self):
+        """Closes the listener socket."""
+        self.listen_sock.close()
+
+    def find_inverter(self, advertisements=10, interval=5.0) -> Tuple[socket, Any]:
         """Searches for an inverter on the network.
 
         Args:
@@ -186,14 +220,16 @@ class InverterListener(socket):
             advertisements: Number of advertisement messages to send.
 
         Returns:
-            The first inverter that is found.
+            A tuple with the inverter socket and address, the same as what
+            socket.accept() returns. Can be used to construct an Inverter
+            instance.
 
         Raises:
             InverterNotFoundError: When no inverter was found after all search
                 messages have been sent.
         """
         message = construct_message(b'\x00\x40\x02', b'I AM SERVER')
-        self.settimeout(interval)
+        self.listen_sock.settimeout(interval)
         # Broadcast socket
         with socket(AF_INET, SOCK_DGRAM) as bc:
             bc.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
@@ -203,12 +239,11 @@ class InverterListener(socket):
                 logging.debug('Sending server broadcast message')
                 bc.sendto(message, ('<broadcast>', 1300))
                 try:
-                    sock, addr = self.accept()
+                    sock, addr = self.listen_sock.accept()
+                    logging.info('Connected with inverter on address %s', addr)
+                    return sock, addr
                 except timeout:
                     pass
-                else:
-                    logging.info('Connected with inverter on address %s', addr)
-                    return Inverter(sock, addr)
         raise InverterNotFoundError
 
 
@@ -272,7 +307,6 @@ def read_message(stream: BinaryIO) -> Tuple[bytes, bytes]:
         raise ValueError('Checksum invalid for message %s', message.hex())
 
     return identifier, payload
-
 
 
 class InverterNotFoundError(Exception):

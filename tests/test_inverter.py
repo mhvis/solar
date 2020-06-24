@@ -1,23 +1,37 @@
+"""Test cases for inverter.py."""
+from io import BytesIO
 from queue import Queue
-from socket import socketpair
+from socket import socketpair, create_connection
 from threading import Thread
 from time import sleep
 from unittest import TestCase
 
-from samil.inverter import calculate_checksum, construct_message, Inverter, InverterEOFError
+from samil.inverter import calculate_checksum, construct_message, Inverter, InverterEOFError, InverterFinder, \
+    InverterNotFoundError, read_message
 
 
 class MessageTestCase(TestCase):
+    """Test message construction/destruction functions."""
+
     def test_checksum(self):
+        """Tests checksum calculation."""
         message = bytes.fromhex("55 aa 01 89 00 00 04 55 0c 00 00")
         checksum = bytes.fromhex("01 ee")
         self.assertEqual(checksum, calculate_checksum(message))
 
     def test_construct(self):
+        """Tests message construction."""
         identifier = b'\x06\x01\x02'
         payload = b'\x10\x10'
         expect = bytes.fromhex("55 aa 06 01 02 00 02 10 10 01 2a")
         self.assertEqual(expect, construct_message(identifier, payload))
+
+    def test_read(self):
+        """Tests read_message function."""
+        f = BytesIO(bytes.fromhex("55 aa 06 01 02 00 02 10 10 01 2a"))
+        ident, payload = read_message(f)
+        self.assertEqual(b"\x06\x01\x02", ident)
+        self.assertEqual(b"\x10\x10", payload)
 
 
 message = b"\x55\xaa\x00\x01\x02\x00\x00\x01\x02"  # Sample inverter message
@@ -94,3 +108,42 @@ class InverterConnectionTestCase(TestCase):
         self.inverter.send(b"\x00\x01\x02", b"")
         received_message = self.sock.recv(4096)
         self.assertEqual(message, received_message)
+
+    def test_disconnect_multiple(self):
+        """Tests if disconnect can be called multiple times."""
+        self.inverter.disconnect()
+        self.inverter.disconnect()  # Should not raise exception
+
+    def test_disconnect_closed(self):
+        """Tests if disconnect can be called on a closed socket."""
+        self.sock.close()
+        self.inverter.sock.close()
+        self.inverter.sock_file.close()
+        self.inverter.disconnect()  # Should not raise exception
+
+
+class InverterFinderTestCase(TestCase):
+    def test_inverter_not_found(self):
+        """Tests if InverterNotFoundError is raised."""
+        with InverterFinder() as finder:
+            with self.assertRaises(InverterNotFoundError):
+                finder.find_inverter(advertisements=2, interval=0.01)
+
+    def test_new_connection(self):
+        """Tests if a new connection is returned."""
+        with InverterFinder() as finder:
+            sock1 = create_connection(('127.0.0.1', 1200))
+            sock2, addr = finder.find_inverter()
+        # Test if the 2 sockets are paired
+        sock2.send(b"\x12")
+        self.assertEqual(b"\x12", sock1.recv(1))
+        sock1.close()
+        sock2.close()
+
+    # noinspection PyMethodMayBeStatic
+    def test_enter(self):
+        """Tests if context manager __enter__ can safely be called twice."""
+        finder = InverterFinder()
+        finder.listen()
+        with finder:
+            pass

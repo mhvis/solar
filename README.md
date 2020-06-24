@@ -161,11 +161,11 @@ For documentation you will need to read through the source code.
 Example to get started:
 
 ```python
-from samil.inverter import InverterListener
+from samil.inverter import Inverter, InverterFinder
 
-with InverterListener() as listener:
+with InverterFinder() as finder:
     # Search for an inverter
-    inverter = listener.accept_inverter()
+    inverter = Inverter(*finder.find_inverter())
 
 with inverter: 
     # Use with statement to automatically close the connection after use

@@ -2,18 +2,18 @@
 import json
 import logging
 import sys
+from contextlib import ExitStack
 from decimal import Decimal
 from time import time, sleep
-from typing import Iterable, List
+from typing import List
 
 import click
 from paho.mqtt.client import Client as MQTTClient
 
-from samil.inverter import InverterNotFoundError, InverterListener
-
-
+from samil.inverter import InverterNotFoundError, InverterFinder, Inverter
 # @click.group(context_settings={"help_option_names": ["-h", "--help"]})
-from samil.util import create_inverter_listener, connect_to_inverters
+from samil.pvoutput import add_status
+from samil.util import connect_to_inverters, get_bound_inverter_finder
 
 
 @click.group()
@@ -95,7 +95,7 @@ def monitor(interval: float, interface: str):
         t = [(form[0], '{}{}{}'.format(v, ' ' if form[1] else '', form[1])) for form, v in t]
         return _format_two_tuple(t)
 
-    with InverterListener(interface_ip=interface or '') as listener:
+    with InverterFinder(interface_ip=interface or '') as listener:
         print("Searching for inverter")
         try:
             inverter = listener.accept_inverter()
@@ -161,16 +161,15 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
         "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
         "internal_temperature":35.0}
     """
-    # Todo: add example message to docstring.
     if interval > 20:
         # Todo
         raise ValueError("Interval of more than 20 seconds is not yet supported (requires keep-alive messages).")
     # First search and connect to inverter(s)
     inverter_configs = []
-    with InverterListener(interface_ip=interface or '') as listener:
+    with InverterFinder(interface_ip=interface or '') as finder:
         print("Connecting to {} inverter(s)".format(inverters))
         for i in range(inverters):
-            inverter = listener.accept_inverter()
+            inverter = Inverter(*finder.find_inverter())
             serial_number = inverter.model()["serial_number"]
             topic = "{}/{}/status".format(topic_prefix, serial_number)
             print("Connected to inverter {} on IP {}".format(serial_number, inverter.addr))
@@ -244,67 +243,57 @@ def pvoutput(system_id, api_key, interval: int, interface, n: int, ip: List[str]
     if logging.root.level > logging.INFO:
         logging.basicConfig(level=logging.INFO)
 
-    # Determine correct nr of inverters
+    # Determine nr of inverters
     count = n if n else len(ip) if ip else len(serial) if serial else 1
+
     # Determine filter function
-    def keep_ip(inverter): return inverter.addr[0] in ip
-    def keep_serial(inverter): return inverter.model()["serial_number"] in serial
+    def keep_ip(inv):
+        return inv.addr[0] in ip
+
+    def keep_serial(inv):
+        return inv.model()["serial_number"] in serial
+
     keep = keep_ip if ip else keep_serial if serial else None
 
     # Connect to inverters
-    listener = create_inverter_listener(interface_ip=interface)
-    with listener:
+    with get_bound_inverter_finder(interface_ip=interface) as finder:
         logging.info("Searching for inverters")
-        inverters = connect_to_inverters(listener, count, keep)
-    sleep(1000)
+        inverters = connect_to_inverters(finder, count, keep)
 
+    # Use ExitStack to make sure that each inverter is properly closed
+    with ExitStack() as stack:
+        for inverter in inverters:
+            stack.enter_context(inverter)
 
-    # try:
-    #
-    # with InverterListener(interface_ip=interface) as listener:
-    #     inverter = listener.accept_inverter()
-    pass
+        def upload():
+            """Uploads status to PVOutput."""
+            # Todo: this should be asynchronous so that multiple inverters can be requested at once
+            statuses = [inv.status() for inv in inverters]
+            # Filter systems with normal operating mode
+            statuses = [s for s in statuses if s["operating_mode"] == "Normal"]
+            if not statuses:
+                logging.info("Not uploading, no inverter has operating mode normal.")
+                return
+            # Todo: check status types
+            add_status(system_id,
+                       api_key,
+                       energy_gen=sum(s["energy_today"] for s in statuses).scaleb(3),
+                       power_gen=sum(s["output_power"] for s in statuses),
+                       temp=sum(s["internal_temperature"] for s in statuses) / len(statuses),
+                       voltage=sum(s["grid_voltage"] for s in statuses) / len(statuses))
 
+        if not interval:
+            # No interval specified, upload once and stop
+            upload()
+            return
 
-# def pvoutput(args):
-#     # Search for the right inverter
-#     with InverterListener(interface_ip=args.interface) as listener:
-#         selected_inverters = []
-#         ignored_inverters = []
-#         while True:
-#             inverter = listener.accept_inverter()
-#             if not inverter:
-#                 raise ConnectionError('Could not find inverter')
-#             model = inverter.model()
-#             logging.info('Inverter serial number: %s', model['serial_number'])
-#             # Check if inverter is selected
-#             selected = True
-#             if args.serial_number and model['serial_number'] not in args.serial_number:
-#                 selected = False
-#             if args.ip and inverter.addr[0] not in args.ip:
-#                 selected = False
-#             logging.info('Inverter is %s', 'selected' if selected else 'ignored')
-#             if selected:
-#                 selected_inverters.append(inverter)
-#             else:
-#                 ignored_inverters.append(inverter)
+        # Interval given, run periodically
+        while True:
+            # Sleep until next boundary
+            timestamp = time()
+            sleep(timestamp + interval * 60 - timestamp % (interval * 60))
+            upload()
 
-#
-#     # PVOutput
-#     parser_pvoutput = subparsers.add_parser('pvoutput', help='upload status data to PVOutput',
-#                                             description='Upload status data to PVOutput.')
-#     parser_pvoutput.add_argument('-i', '--interface', help='bind interface IP (default: all interfaces)', default='')
-#     parser_pvoutput.add_argument('-n', '--inverters', type=int, default=1,
-#                                  help='number of inverters (default: %(default)s)', dest='num')
-#     matcher_group = parser_pvoutput.add_mutually_exclusive_group()
-#     matcher_group.add_argument('--only-serial', nargs='*', dest='serial_number',
-#                                help='only match inverters with one of the given serial numbers')
-#     matcher_group.add_argument('--only-ip', nargs='*', dest='ip',
-#                                help='only match inverters with one of the given IPs')
-#     parser_pvoutput.add_argument('-s', '--system', type=int, help='PVOutput system ID')
-#     parser_pvoutput.add_argument('-k', '--api-key', type=int, help='PVOutput system API key')
-#     parser_pvoutput.set_defaults(func=pvoutput)
-#
 #     # History
 #     parser_history = subparsers.add_parser('history', help='fetch historical generation data from inverter',
 #                                            description='Fetch historical generation data from inverter.')
