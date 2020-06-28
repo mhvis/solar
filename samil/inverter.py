@@ -147,9 +147,8 @@ class Inverter:
         self.send(identifier, payload)
         response_id, response_payload = self.receive()
         while not response_id.startswith(expected_response_id):
-            logging.warning("Got unexpected inverter response {} for request {}, {}".format(
-                response_id.hex(), identifier.hex(), payload.hex()
-            ))
+            logging.warning("Got unexpected inverter response {} for request {}".format(
+                response_id.hex(), identifier.hex()))
             response_id, response_payload = self.receive()
         return response_id, response_payload
 

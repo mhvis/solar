@@ -116,6 +116,8 @@ Group=pi
 Restart=on-failure
 RestartSec=30
 
+Environment="PYTHONUNBUFFERED=1"  # Leave as is
+
 [Install]
 WantedBy=multi-user.target
 ```
