@@ -36,6 +36,10 @@ class Inverter:
         self.sock = sock
         self.sock_file = sock.makefile('rwb')
         self.addr = addr
+        # Inverters should respond in around 1.5 seconds, setting a timeout
+        #  above that value will ensure that the application won't hang too
+        #  long when the inverter doesn't send anything.
+        self.sock.settimeout(30.0)
 
     def __enter__(self):
         """Returns self."""
@@ -142,10 +146,11 @@ class Inverter:
         """
         self.send(identifier, payload)
         response_id, response_payload = self.receive()
-        if not response_id.startswith(expected_response_id):
-            raise RuntimeError("Request failed, got unexpected inverter response {}, {} for request {}, {}".format(
-                response_id.hex(), response_payload.hex(), identifier.hex(), payload.hex()
+        while not response_id.startswith(expected_response_id):
+            logging.warning("Got unexpected inverter response {} for request {}, {}".format(
+                response_id.hex(), identifier.hex(), payload.hex()
             ))
+            response_id, response_payload = self.receive()
         return response_id, response_payload
 
     def send(self, identifier: bytes, payload: bytes):
@@ -311,6 +316,7 @@ def read_message(stream: BinaryIO) -> Tuple[bytes, bytes]:
 
 class InverterNotFoundError(Exception):
     """No inverter was found on the network."""
+    pass
 
 
 class InverterEOFError(Exception):
@@ -318,3 +324,14 @@ class InverterEOFError(Exception):
 
     Raised when EOF is encountered.
     """
+    pass
+
+# def empty_sock(sock: socket):
+#     """Empty the socket receive buffer."""
+#     sock.setblocking(False)
+#     while True:
+#         try:
+#             sock.recv(4096)
+#         except BlockingIOError:
+#             break
+#     sock.setblocking(True)

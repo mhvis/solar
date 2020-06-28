@@ -147,3 +147,12 @@ class InverterFinderTestCase(TestCase):
         finder.listen()
         with finder:
             pass
+
+# class EmptySockTestCase(TestCase):
+#     def test_empty(self):
+#         sock1, sock2 = socketpair()
+#         sock1.send(b"\x01\x02\x03\x04\x05\x06\x07\x08\x09")
+#         empty_sock(sock2)
+#         sock1.close()
+#         self.assertEqual(b"", sock2.recv(4096))
+#         sock2.close()

@@ -2,6 +2,7 @@
 import json
 import logging
 import sys
+from collections import namedtuple
 from contextlib import ExitStack
 from decimal import Decimal
 from time import time, sleep
@@ -10,7 +11,7 @@ from typing import List
 import click
 from paho.mqtt.client import Client as MQTTClient
 
-from samil.inverter import InverterNotFoundError, InverterFinder, Inverter
+from samil.inverter import InverterNotFoundError, InverterFinder
 # @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 from samil.pvoutput import add_status
 from samil.util import connect_to_inverters, get_bound_inverter_finder, KeepAliveInverter
@@ -157,45 +158,52 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
         "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
         "internal_temperature":35.0}
     """
-    if interval > 20:
-        # Todo
-        raise ValueError("Interval of more than 20 seconds is not yet supported (requires keep-alive messages).")
-    # First search and connect to inverter(s)
-    inverter_configs = []
-    with InverterFinder(interface_ip=interface or '') as finder:
-        print("Connecting to {} inverter(s)".format(inverters))
-        for i in range(inverters):
-            inverter = Inverter(*finder.find_inverter())
-            serial_number = inverter.model()["serial_number"]
-            topic = "{}/{}/status".format(topic_prefix, serial_number)
-            print("Connected to inverter {} on IP {}".format(serial_number, inverter.addr))
-            inverter_configs.append((serial_number, topic, inverter))
+    # Todo: this function is real ugly, need to rewrite.
+    MQTTInverter = namedtuple("MQTTInverter", ["inverter", "topic", "serial_number"])
 
-    # Then connect to MQTT
-    print("Connecting to MQTT broker")
-    client = MQTTClient(client_id=client_id)
-    if tls:
-        client.tls_set()
-    if username:
-        client.username_pw_set(username, password)
-    client.connect(host=host, port=port, bind_address=interface or '')
-    client.loop_start()  # Starts handling MQTT traffic in separate thread
+    with ExitStack() as stack:  # Exit stack to always cleanly disconnect with inverters on errors
 
-    topics = ", ".join(x[1] for x in inverter_configs)
-    print("Startup complete, now publishing status data every {} seconds to topic(s): {}".format(interval, topics))
+        # First search and connect to inverter(s)
+        mqtt_inverters = []
+        with InverterFinder(interface_ip=interface or '') as finder:
+            print("Connecting to {} inverter(s)".format(inverters))
+            for i in range(inverters):
+                inverter = KeepAliveInverter(*finder.find_inverter())
+                stack.enter_context(inverter)
+                serial_number = inverter.model()["serial_number"]
+                print("Connected to inverter {} on IP {}".format(serial_number, inverter.addr))
+                mqtt_inverters.append(MQTTInverter(inverter=inverter,
+                                                   topic="{}/{}/status".format(topic_prefix, serial_number),
+                                                   serial_number=serial_number))
 
-    start_time = time()
-    while True:
-        for inverter_config in inverter_configs:
-            status = inverter_config[2].status()
-            message = json.dumps(status,
-                                 cls=DecimalEncoder,
-                                 separators=(',', ':'))  # Compact encoding
-            client.publish(topic=inverter_config[1], payload=message)
+        # Then connect to MQTT
+        print("Connecting to MQTT broker")
+        client = MQTTClient(client_id=client_id)
+        if tls:
+            client.tls_set()
+        if username:
+            client.username_pw_set(username, password)
+        client.connect(host=host, port=port, bind_address=interface or '')
+        client.loop_start()  # Starts handling MQTT traffic in separate thread
+        stack.push(lambda *args: client.disconnect())
 
-        # This doesn't suffer from drifting, however it will skip messages when
-        #  a message takes longer than the interval.
-        sleep(interval - ((time() - start_time) % interval))
+        # Startup done
+        topics = ", ".join(x.topic for x in mqtt_inverters)
+        print("Startup complete, now publishing status data every {} seconds to topic(s): {}".format(interval,
+                                                                                                     topics))
+
+        start_time = time()
+        while True:
+            for mqtt_inverter in mqtt_inverters:
+                status = mqtt_inverter.inverter.status()
+                message = json.dumps(status,
+                                     cls=DecimalEncoder,
+                                     separators=(',', ':'))  # Compact encoding
+                client.publish(topic=mqtt_inverter.topic, payload=message)
+
+            # This doesn't suffer from drifting, however it will skip messages when
+            #  a message takes longer than the interval.
+            sleep(interval - ((time() - start_time) % interval))
 
 
 @cli.command()
@@ -266,7 +274,7 @@ def pvoutput(system_id, api_key, interval: int, interface, n: int, ip: List[str]
             # Todo: this should be asynchronous so that multiple inverters can be requested at once
             statuses = [inv.status() for inv in inverters]
             # Filter systems with normal operating mode
-            statuses = [s for s in statuses if s["operating_mode"] == "Normal"]
+            statuses = [s for s in statuses if s["operation_mode"] == "Normal"]
             if not statuses:
                 logging.info("Not uploading, no inverter has operating mode normal.")
                 return
