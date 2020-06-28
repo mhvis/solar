@@ -87,13 +87,12 @@ To run this command at startup, [see below](#run-command-at-boot).
 
 ## Run command at boot
 
-Here are instructions for setting up the MQTT or PVOutput command to run at
-startup, by creating a SystemD service.
+Follow the instructions here to run the MQTT or PVOutput command automatically at startup.
 
-Source: [StackExchange](https://raspberrypi.stackexchange.com/a/108723).
-Tested on Raspberry Pi OS Lite version May 2020.
+The instructions are based on [this post](https://raspberrypi.stackexchange.com/a/108723)
+and tested on Raspberry Pi OS Lite version May 2020.
 
-First, create a new service:
+Create a new service:
 ```
 $ sudo systemctl edit --force --full samil.service
 ```
