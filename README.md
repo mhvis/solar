@@ -116,7 +116,7 @@ up your systems, make an [issue](https://github.com/mhvis/solar/issues) or
 ## Info
 
 The protocol used by these inverters is described
-[here](https://mhvis.github.io/solar/communication-protocol.html).
+[here](https://mhvis.github.io/solar/).
 
 This project was originally a fork of [zombiekipling/solriv](https://github.com/zombiekipling/solriv)
 but is now completely rewritten to implement new requirements.
