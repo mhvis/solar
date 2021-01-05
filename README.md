@@ -147,7 +147,7 @@ $ sudo systemctl disable samil.service
 ## Background info
 
 The protocol used by these inverters is described
-[here](https://mhvis.github.io/solar/communication-protocol.html).
+[here](https://mhvis.github.io/solar/).
 
 The following units are used for the status values:
 
