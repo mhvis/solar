@@ -7,7 +7,7 @@ from time import sleep
 from unittest import TestCase
 
 from samil.inverter import calculate_checksum, construct_message, Inverter, InverterEOFError, InverterFinder, \
-    InverterNotFoundError, read_message
+    InverterNotFoundError, read_message, KeepAliveInverter
 
 
 class MessageTestCase(TestCase):
@@ -140,19 +140,85 @@ class InverterFinderTestCase(TestCase):
         sock1.close()
         sock2.close()
 
-    # noinspection PyMethodMayBeStatic
-    def test_enter(self):
-        """Tests if context manager __enter__ can safely be called twice."""
-        finder = InverterFinder()
-        finder.listen()
-        with finder:
-            pass
+    def test_open_with_retries_exception(self):
+        """Tests if OSError is thrown after all retries have failed."""
+        port_blocker = InverterFinder()
+        port_blocker.open()
+        with self.assertRaises(OSError):
+            finder = InverterFinder()
+            finder.open_with_retries(retries=2, period=0.01)
+        port_blocker.close()
 
-# class EmptySockTestCase(TestCase):
-#     def test_empty(self):
-#         sock1, sock2 = socketpair()
-#         sock1.send(b"\x01\x02\x03\x04\x05\x06\x07\x08\x09")
-#         empty_sock(sock2)
-#         sock1.close()
-#         self.assertEqual(b"", sock2.recv(4096))
-#         sock2.close()
+    def test_open_with_retries(self):
+        """Tests if a retry happens when port is bound."""
+        # Bind port
+        port_blocker = InverterFinder()
+        port_blocker.open()
+
+        # Try binding port using retry function in separate thread
+        def try_bind(q: Queue):
+            finder = InverterFinder()
+            finder.open_with_retries(retries=10, period=0.01)
+            finder.close()
+            # If bind failed, an exception should've been thrown by now
+            # I assume the bind has succeeded here
+            q.put(True)
+
+        queue = Queue()
+        thread = Thread(target=try_bind, args=(queue,))
+        thread.start()
+
+        # Unbind port
+        sleep(0.01)
+        port_blocker.close()
+
+        # Check if bind succeeded
+        thread.join()
+        succeeded = queue.get(timeout=1.0)
+        self.assertTrue(succeeded)
+
+
+class KeepAliveInverterTestCase(TestCase):
+    """Tests for KeepAliveInverter class."""
+
+    def setUp(self) -> None:
+        """Creates socket pair for local (app) and remote ('real' inverter) side."""
+        local_sock, remote_sock = socketpair()
+        local_sock.settimeout(1.0)
+        remote_sock.settimeout(1.0)
+        self.inverter = KeepAliveInverter(local_sock, None, keep_alive=0.01)
+        self.sock = remote_sock
+
+    def tearDown(self) -> None:
+        """Closes the sockets to prevent warnings."""
+        self.inverter.disconnect()
+        self.sock.close()
+
+    def test_keep_alive_sent(self):
+        """Tests if a keep-alive message gets send periodically."""
+        # Receive keep-alive message
+        msg = self.sock.recv(4096)
+        self.assertTrue(msg.startswith(b"\x55\xaa"))
+        # Send some arbitrary response
+        self.sock.send(bytes.fromhex("55 aa 01 02 02 00 00 01 04"))
+        # Receive another keep-alive message
+        msg = self.sock.recv(4096)
+        self.assertTrue(msg.startswith(b"\x55\xaa"))
+        # Send some arbitrary response
+        self.sock.send(bytes.fromhex("55 aa 01 02 02 00 00 01 04"))
+
+    def test_keep_alive_cancelled(self):
+        """Tests if keep-alive messages are cancelled when other messages are sent."""
+        sleep(0.008)  # Wait just before a keep-alive message will be sent
+        self.inverter.send(b"\x01\x02\x03", b"")  # Send something arbitrary
+        self.sock.recv(4096)  # Retrieve the sent message
+        sleep(0.004)  # Wait until the keep-alive was supposed to happen
+        # Check that no message was sent
+        self.sock.setblocking(False)
+        with self.assertRaises(BlockingIOError):
+            self.sock.recv(4096)
+
+    def test_disconnect(self):
+        """Tests if the keep-alive messages will stop cleanly."""
+        self.inverter.disconnect()
+        sleep(0.02)

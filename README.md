@@ -20,12 +20,13 @@ If you just need PVOutput.org uploading, you can also try the
 ## Features
 
 * View inverter data
-* Upload to PVOutput.org, data is aggregated for multiple inverters
+* Upload to PVOutput.org
 * Publish to MQTT broker
 
 The following features are not implemented but can be easily implemented upon request:
 
 * Filter inverter based on IP or serial number
+* Support for multiple PVOutput.org systems
 
 ## Requirements
 
@@ -61,7 +62,7 @@ $ pip install samil
 #### Monitor
 
 The command `samil monitor` will search for an inverter in the network and print model and status info.
-It will connect to 1 inverter and print status data every 5 seconds.
+It will connect to the first inverter it finds and print status data every 5 seconds.
 See `samil monitor --help` for additional options.
 
 #### MQTT
@@ -81,7 +82,7 @@ To run this command at startup, [see below](#run-command-at-boot).
 
 #### PVOutput.org uploading
 
-*Todo*
+See `samil pvoutput --help` for usage info.
 
 #### Fetch historical data
 

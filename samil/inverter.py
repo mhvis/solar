@@ -1,12 +1,11 @@
-"""Communicate with Samil Power inverters.
-
-For protocol information see https://github.com/mhvis/solar/wiki/Communication-protocol.
-"""
+"""Communicate with Samil Power inverters."""
 
 import logging
+import socket
 from collections import OrderedDict
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SOCK_DGRAM, SO_BROADCAST, timeout, SHUT_RDWR
-from typing import Tuple, Dict, BinaryIO, Any
+from threading import Event, Thread
+from time import sleep
+from typing import Tuple, Dict, BinaryIO, Any, Optional
 
 from samil.statustypes import status_types
 
@@ -50,13 +49,14 @@ class Inverter:
         self.disconnect()
 
     def disconnect(self) -> None:
-        """Sends a disconnect message and closes the connection.
+        """Sends a shutdown packet and closes the connection.
 
-        By using socket.shutdown it appears that the inverter directly will
-        accepts new connections.
+        socket.shutdown sends a shutdown packet to the inverter which cleanly
+        closes the connection and lets the inverter directly accept new
+        connections.
         """
         try:
-            self.sock.shutdown(SHUT_RDWR)
+            self.sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
             # The socket might have been closed already for some reason, in
             # which case some OSError will be thrown:
@@ -101,7 +101,8 @@ class Inverter:
         For all possible values, see statustypes.py.
         """
         if not self._status_format:
-            self.status_format()
+            # Retrieve and cache status format
+            self._status_format = self.status_format()
 
         ident, payload = self.request(b'\x01\x02\x02', b'', b'\x01\x82')
 
@@ -124,7 +125,6 @@ class Inverter:
         See the protocol information for details.
         """
         ident, payload = self.request(b'\x01\x00\x02', b'', b'\x01\x80')
-        self._status_format = payload  # Cache result
         return payload
 
     def history(self, start, end):
@@ -176,8 +176,10 @@ class Inverter:
 class InverterFinder:
     """Class for establishing new inverter connections.
 
-    Use in a 'with' statement (for the listener socket).
+    You need to call open() and close() or use the class in a with statement.
     """
+
+    listen_sock = None  # type: Optional[socket.socket]
 
     def __init__(self, interface_ip=''):
         """Create instance.
@@ -186,37 +188,77 @@ class InverterFinder:
             interface_ip: Bind interface IP for listener and broadcast sockets.
         """
         self.interface_ip = interface_ip
-        self.listen_sock = socket(AF_INET, SOCK_STREAM)
-        # Allow socket bind conflicts.
-        # This makes it possible to directly rebind to the same port.
-        self.listen_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        self._listening = False
 
     def __enter__(self):
-        """See listen method."""
-        self.listen()
+        """See open method."""
+        self.open_with_retries()
         return self
 
     def __exit__(self, *args):
         """See close method."""
         self.close()
 
-    def listen(self):
-        """Binds the listener socket and starts listening.
+    def open(self):
+        """Creates and binds the listener socket and starts listening.
 
-        Needs to be called before searching for inverters. Use 'with' statement
-        to have this called automatically.
+        Needs to be called before searching for inverters, unless used as
+        context manager.
         """
-        if not self._listening:
+        if self.listen_sock:
+            raise RuntimeError("Socket is already created")
+
+        try:
+            # Create socket
+            self.listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            # Allow socket bind conflicts, this makes it possible to directly rebind to the same port
+            self.listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except OSError:
+            self.listen_sock = None
+            raise
+
+        try:
+            # Bind and listen, binding might raise OSError if port is already bound
             self.listen_sock.bind((self.interface_ip, 1200))
             self.listen_sock.listen()
-            self._listening = True
+        except OSError:
+            self.listen_sock.close()
+            self.listen_sock = None
+            raise
+
+    def open_with_retries(self, retries=10, period=1.0):
+        """Opens the finder, retrying if the port is already bound.
+
+        Args:
+            retries: Maximum number of retries for when the listener port is bound.
+            period: Period between retries.
+
+        Raises:
+            OSError: When all tries failed.
+        """
+        tries = 0
+        while True:
+            try:
+                self.open()
+                return
+            except OSError as e:
+                # Re-raise if the thrown error does not equal 'port already bound'
+                if e.errno != 98:
+                    raise e
+                logging.info("Listening port (1200) already in use, retrying")
+                # Check for maximum number of retries
+                tries += 1
+                if tries >= retries:
+                    raise e
+                sleep(period)
+        # (This is unreachable)
 
     def close(self):
         """Closes the listener socket."""
         self.listen_sock.close()
+        self.listen_sock = None
 
-    def find_inverter(self, advertisements=10, interval=5.0) -> Tuple[socket, Any]:
+    def find_inverter(self, advertisements=10, interval=5.0) -> Tuple[socket.socket, Any]:
         """Searches for an inverter on the network.
 
         Args:
@@ -235,8 +277,8 @@ class InverterFinder:
         message = construct_message(b'\x00\x40\x02', b'I AM SERVER')
         self.listen_sock.settimeout(interval)
         # Broadcast socket
-        with socket(AF_INET, SOCK_DGRAM) as bc:
-            bc.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as bc:
+            bc.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             bc.bind((self.interface_ip, 0))
 
             for i in range(advertisements):
@@ -246,7 +288,7 @@ class InverterFinder:
                     sock, addr = self.listen_sock.accept()
                     logging.info('Connected with inverter on address %s', addr)
                     return sock, addr
-                except timeout:
+                except socket.timeout:
                     pass
         raise InverterNotFoundError
 
@@ -325,12 +367,84 @@ class InverterEOFError(Exception):
     """
     pass
 
-# def empty_sock(sock: socket):
-#     """Empty the socket receive buffer."""
-#     sock.setblocking(False)
-#     while True:
-#         try:
-#             sock.recv(4096)
-#         except BlockingIOError:
-#             break
-#     sock.setblocking(True)
+
+class KeepAliveInverter(Inverter):
+    """Inverter that is kept alive by sending a request every couple seconds.
+
+    Keep-alive messages are only sent when the last sent message became too
+    long ago. When the program makes requests quicker than the keep-alive
+    period, no keep-alive messages will be sent.
+    """
+
+    def __init__(self, sock: socket, addr, keep_alive: float = 11.0):
+        """See base class.
+
+        Args:
+            sock: The inverter socket, which is assumed to be connected.
+            addr: The inverter network address.
+            keep_alive: Maximum time since last message before a keep-alive
+                message is triggered. The default of 11 seconds is chosen such
+                that keep-alive messages will not be sent when status is
+                retrieved every 10 seconds.
+        """
+        super().__init__(sock, addr)
+        self.keep_alive_period = keep_alive
+        self.keep_alive_timer = None
+
+        self._ka_thread = None  # Keep-alive thread
+        self._ka_stop = Event()  # Used for stopping keep-alive messages
+        self.start_keep_alive()
+
+    def stop_keep_alive(self) -> None:
+        """Stops the periodic keep-alive messages.
+
+        Blocks for a moment if a keep-alive request is currently being handled.
+        """
+        if not self._ka_thread:
+            return  # No-op if already stopped
+        self._ka_stop.set()
+        self._ka_thread.join()
+        self._ka_thread = None
+
+    def start_keep_alive(self):
+        """Starts sending keep-alive messages periodically."""
+        if self._ka_thread:
+            raise RuntimeError("Keep-alive thread already exists")
+        self._ka_stop.clear()
+        self._ka_thread = Thread(target=self._ka_runner, daemon=True)
+        self._ka_thread.start()
+
+    def _ka_runner(self):
+        """Sends a keep-alive periodically until stopped."""
+        while True:
+            # stopped will be False when the timeout occurred
+            stopped = self._ka_stop.wait(timeout=self.keep_alive_period)
+            if stopped:
+                return
+            self.keep_alive()
+
+    def keep_alive(self):
+        """Sends a keep-alive message."""
+        # We have to call the superclass because self.send/self.receive
+        #  interfere with the keep-alive runner.
+        super().send(b"\x01\x02\x02", b"")  # Status message
+        # super().send(b"\x01\x09\x02", b"")  # Unknown message
+        super().receive()
+
+    def send(self, identifier: bytes, payload: bytes):
+        """See base class."""
+        self.stop_keep_alive()
+        super().send(identifier, payload)
+        self.start_keep_alive()
+
+    def receive(self) -> Tuple[bytes, bytes]:
+        """See base class."""
+        self.stop_keep_alive()
+        msg = super().receive()
+        self.start_keep_alive()
+        return msg
+
+    def disconnect(self):
+        """See base class."""
+        self.stop_keep_alive()
+        super().disconnect()

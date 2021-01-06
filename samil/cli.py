@@ -1,20 +1,16 @@
 """Command-line interface."""
 import json
 import logging
-import sys
 from collections import namedtuple
-from contextlib import ExitStack
 from decimal import Decimal
 from time import time, sleep
-from typing import List
 
 import click
 from paho.mqtt.client import Client as MQTTClient
 
-from samil.inverter import InverterNotFoundError, InverterFinder
-# @click.group(context_settings={"help_option_names": ["-h", "--help"]})
-from samil.pvoutput import add_status
-from samil.util import connect_to_inverters, get_bound_inverter_finder, KeepAliveInverter
+from samil.inverter import InverterNotFoundError, InverterFinder, KeepAliveInverter
+from samil.inverterutil import connect_inverters
+from samil.pvoutput import add_status, aggregate_statuses
 
 
 @click.group()
@@ -98,7 +94,7 @@ def monitor(interval: float, interface: str):
             inverter = KeepAliveInverter(*finder.find_inverter())
         except InverterNotFoundError:
             print("Could not find inverter")
-            sys.exit()
+            return
 
     with inverter:
         print("Found inverter on address {}".format(inverter.addr))
@@ -128,23 +124,23 @@ class DecimalEncoder(json.JSONEncoder):
         """See base class."""
         if isinstance(o, Decimal):
             return float(o)
-        return super(DecimalEncoder, self).default(o)
+        return super().default(o)
 
 
 @cli.command()
-@click.option('--inverters', '-n', default=1, help="Number of inverters.", show_default=True)
-@click.option('--interval', '-i', default=10.0, help="Interval between status messages in seconds.", show_default=True)
-@click.option('--host', '-h', default="localhost", help="MQTT broker hostname or IP.", show_default=True)
-@click.option('--port', '-p', default=1883, help="MQTT broker port.", show_default=True)
+@click.option('-n', '--inverters', 'n', default=1, help="Number of inverters.", show_default=True)
+@click.option('-i', '--interval', default=10.0, help="Interval between status messages in seconds.", show_default=True)
+@click.option('-h', '--host', default='localhost', help="MQTT broker hostname or IP.", show_default=True)
+@click.option('-p', '--port', default=1883, help="MQTT broker port.", show_default=True)
 @click.option('--client-id',
               default='',
               help="MQTT client ID. If not provided, one will be randomly generated.")
 @click.option('--tls', is_flag=True, default=False, help="Enable MQTT SSL/TLS support.")
 @click.option('--username', help="MQTT username.")
 @click.option('--password', help="MQTT password.")
-@click.option('--topic-prefix', help="MQTT topic prefix.", default="inverter", show_default=True)
-@click.option('--interface', help="IP address of local network interface to bind to.")
-def mqtt(inverters, interval, host, port, client_id, tls: bool, username, password, interface, topic_prefix):
+@click.option('--topic-prefix', help="MQTT topic prefix.", default='inverter', show_default=True)
+@click.option('--interface', help="IP address of local network interface to bind to.", default='')
+def mqtt(n: int, interval: float, host, port, client_id, tls: bool, username, password, interface, topic_prefix):
     """Publish inverter data to an MQTT broker.
 
     The default topic format is inverter/<serial number>/status, e.g.
@@ -158,25 +154,18 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
         "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
         "internal_temperature":35.0}
     """
-    # Todo: this function is real ugly, need to rewrite.
     MQTTInverter = namedtuple("MQTTInverter", ["inverter", "topic", "serial_number"])
 
-    with ExitStack() as stack:  # Exit stack to always cleanly disconnect with inverters on errors
+    print("Connecting to {} inverter(s)".format(n))
+    mqtt_inverters = []
+    with connect_inverters(interface, n) as inverters:
+        for i in inverters:
+            serial_number = i.model()["serial_number"]
+            print("Connected to inverter {} on IP {}".format(serial_number, i.addr))
+            mqtt_inverters.append(MQTTInverter(inverter=i,
+                                               topic="{}/{}/status".format(topic_prefix, serial_number),
+                                               serial_number=serial_number))
 
-        # First search and connect to inverter(s)
-        mqtt_inverters = []
-        with InverterFinder(interface_ip=interface or '') as finder:
-            print("Connecting to {} inverter(s)".format(inverters))
-            for i in range(inverters):
-                inverter = KeepAliveInverter(*finder.find_inverter())
-                stack.enter_context(inverter)
-                serial_number = inverter.model()["serial_number"]
-                print("Connected to inverter {} on IP {}".format(serial_number, inverter.addr))
-                mqtt_inverters.append(MQTTInverter(inverter=inverter,
-                                                   topic="{}/{}/status".format(topic_prefix, serial_number),
-                                                   serial_number=serial_number))
-
-        # Then connect to MQTT
         print("Connecting to MQTT broker")
         client = MQTTClient(client_id=client_id)
         if tls:
@@ -185,106 +174,82 @@ def mqtt(inverters, interval, host, port, client_id, tls: bool, username, passwo
             client.username_pw_set(username, password)
         client.connect(host=host, port=port, bind_address=interface or '')
         client.loop_start()  # Starts handling MQTT traffic in separate thread
-        stack.push(lambda *args: client.disconnect())
 
-        # Startup done
-        topics = ", ".join(x.topic for x in mqtt_inverters)
-        print("Startup complete, now publishing status data every {} seconds to topic(s): {}".format(interval,
-                                                                                                     topics))
+        try:
+            # Startup done
+            topics = ", ".join(x.topic for x in mqtt_inverters)
+            print("Startup complete, now publishing status data every {} seconds to topic(s): {}".format(interval,
+                                                                                                         topics))
 
-        start_time = time()
-        while True:
-            for mqtt_inverter in mqtt_inverters:
-                status = mqtt_inverter.inverter.status()
-                message = json.dumps(status,
-                                     cls=DecimalEncoder,
-                                     separators=(',', ':'))  # Compact encoding
-                client.publish(topic=mqtt_inverter.topic, payload=message)
+            start_time = time()
+            while True:
+                for mqtt_inverter in mqtt_inverters:
+                    status = mqtt_inverter.inverter.status()
+                    message = json.dumps(status,
+                                         cls=DecimalEncoder,
+                                         separators=(',', ':'))  # Compact encoding
+                    client.publish(topic=mqtt_inverter.topic, payload=message)
 
-            # This doesn't suffer from drifting, however it will skip messages when
-            #  a message takes longer than the interval.
-            sleep(interval - ((time() - start_time) % interval))
+                # This doesn't suffer from drifting, however it will skip messages when
+                #  a message takes longer than the interval.
+                sleep(interval - ((time() - start_time) % interval))
+        finally:
+            # Disconnect MQTT on exception
+            client.disconnect()
 
 
 @cli.command()
 @click.argument('system-id')
 @click.argument('api-key')
+@click.option('-n', help="Connect to n inverters.", type=int, default=1, show_default=True)
+@click.option('--dc-voltage',
+              is_flag=True,
+              default=False,
+              help=("By default, AC voltage is uploaded, specify this "
+                    "if you want to upload DC (panel) voltage instead."))
 @click.option('--interval', '-i',
               type=int,
               help="Interval between status uploads in minutes, should be 5, 10 or 15. "
                    "If not specified, only does a single upload.")
-@click.option('--interface', default="", help="IP address of local network interface to bind to.")
-@click.option('-n',
-              help="Connect to n inverters.",
-              type=int)
-@click.option('--ip',
-              help="Connect to inverters with the given IP address(es) only. Can be given multiple times.",
-              multiple=True)
-@click.option('--serial',
-              help="Connect to inverters with the given serial number(s) only. Can be given multiple times.",
-              multiple=True)
-def pvoutput(system_id, api_key, interval: int, interface, n: int, ip: List[str], serial: List[str]):
+@click.option('--dry-run', is_flag=True, default=False, help="Do not upload data to PVOutput.org.")
+@click.option('--interface', default='', help="IP address of local network interface to bind to.")
+def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: int, dry_run: bool):
     """Upload inverter status to a PVOutput.org system.
 
     Specify the PVOutput system using the SYSTEM_ID and API_KEY arguments. The
     command will connect to the inverter, upload the current status data and
     exit. Use something like cron to upload status data every 5 minutes.
 
+    If you have multiple inverters, specify -n with the number of inverters.
+    Data of all inverters will be aggregated before uploading to
+    PVOutput, energy is summed, voltage and temperature are averaged. For
+    temperature, the internal temperature is used, not the heatsink
+    temperature. If the inverter uses three phases, the voltage of each phase
+    is averaged.
+
     If you don't want to use cron, specify the --interval option to
     make the application upload status data on the specified interval.
     With this mode the application will stay connected to the inverters
-    in between uploads.
-
-    For multiple inverters, specify the inverters to connect to using one of
-    -n, --ip or --serial. Data will be aggregated correctly before uploading to
-    PVOutput, energy is summed, voltage and temperature are averaged. To upload
-    to multiple PVOutput systems, run this application once for each system.
+    in between uploads, this is less recommended.
     """
-    if bool(n) + bool(ip) + bool(serial) > 1:
-        raise ValueError("Arguments -n, --ip and --serial are mutually exclusive")
-
     # Print info messages (at least)
     if logging.root.level > logging.INFO:
         logging.basicConfig(level=logging.INFO)
 
-    # Determine nr of inverters
-    count = n if n else len(ip) if ip else len(serial) if serial else 1
-
-    # Determine filter function
-    def keep_ip(inv):
-        return inv.addr[0] in ip
-
-    def keep_serial(inv):
-        return inv.model()["serial_number"] in serial
-
-    keep = keep_ip if ip else keep_serial if serial else None
-
-    # Connect to inverters
-    with get_bound_inverter_finder(interface_ip=interface) as finder:
-        logging.info("Searching for inverters")
-        inverters = connect_to_inverters(finder, count, keep)
-
-    # Use ExitStack to make sure that each inverter is properly closed
-    with ExitStack() as stack:
-        for inverter in inverters:
-            stack.enter_context(inverter)
-
+    logging.info("Connecting to inverter(s)")
+    with connect_inverters(interface, n) as inverters:
         def upload():
             """Uploads status to PVOutput."""
             # Todo: this should be asynchronous so that multiple inverters can be requested at once
-            statuses = [inv.status() for inv in inverters]
-            # Filter systems with normal operating mode
-            statuses = [s for s in statuses if s["operation_mode"] == "Normal"]
-            if not statuses:
-                logging.info("Not uploading, no inverter has operating mode normal.")
+            status_data = aggregate_statuses([inv.status() for inv in inverters], dc_voltage=dc_voltage)
+            if not status_data:
+                logging.info("Not uploading, no inverter has operating mode normal")
                 return
-            # Todo: check status types
-            add_status(system_id,
-                       api_key,
-                       energy_gen=sum(s["energy_today"] for s in statuses).scaleb(3),
-                       power_gen=sum(s["output_power"] for s in statuses),
-                       temp=sum(s["internal_temperature"] for s in statuses) / len(statuses),
-                       voltage=sum(s["grid_voltage"] for s in statuses) / len(statuses))
+
+            # Upload
+            logging.info("Uploading status data: %s", status_data)
+            if not dry_run:
+                add_status(system_id, api_key, **status_data)
 
         if not interval:
             # No interval specified, upload once and stop
@@ -292,10 +257,10 @@ def pvoutput(system_id, api_key, interval: int, interface, n: int, ip: List[str]
             return
 
         # Interval given, run periodically
+        logging.info("Waiting for next interval boundary to do the first upload")
         while True:
             # Sleep until next boundary
-            timestamp = time()
-            sleep(timestamp + interval * 60 - timestamp % (interval * 60))
+            sleep(interval * 60 - time() % (interval * 60))
             upload()
 
 #     # History
