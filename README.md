@@ -5,7 +5,7 @@
 Get model and status data from Samil Power inverters over the network.
 
 If you just need PVOutput.org uploading, you can also try the
-[old version](https://github.com/mhvis/solar).
+[old version](https://github.com/mhvis/solar/tree/v1).
 
 ## Supported inverter series
 
