@@ -4,6 +4,9 @@
 
 Get model and status data from Samil Power inverters over the network.
 
+If you just need PVOutput.org uploading, you can also try the
+[old version](https://github.com/mhvis/solar).
+
 ## Supported inverter series
 
 * SolarRiver TL
@@ -13,9 +16,6 @@ Get model and status data from Samil Power inverters over the network.
 If you have a SolarLake TL-PM series inverter, check out this fork!
 ->
 [semonet/solar](https://github.com/semonet/solar)
-
-If you just need PVOutput.org uploading, you can also try the
-[old version](https://github.com/mhvis/solar).
 
 ## Features
 
