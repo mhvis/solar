@@ -62,7 +62,8 @@ class Inverter:
             # which case some OSError will be thrown:
             #
             # * [Errno 9] Bad file descriptor
-            if e.errno != 107 and e.errno != 9:
+            # * [WinError 10038] An operation was attempted on something that is not a socket
+            if e.errno != 107 and e.errno != 9 and e.errno != 10038:
                 raise e
         self.sock_file.close()
         self.sock.close()
