@@ -1,122 +1,188 @@
-# Samil Power uploader
+# Samil Power inverter tool
 
-PVOutput.org uploader for Samil Power inverters. Supports:
+![PyPI](https://img.shields.io/pypi/v/samil)
 
-* SolarRiver TL series
-* SolarRiver TL-D series (confirmed)
-* SolarLake TL series works only with [v2](https://github.com/mhvis/solar/tree/v2), which is not tested in production and likely needs some work to get running properly.
-* For SolarLake TL-PM series check out this fork! ->
+Get model and status data from Samil Power inverters over the network.
+
+If you just need PVOutput.org uploading, you can also try the
+[old version](https://github.com/mhvis/solar).
+
+## Supported inverter series
+
+* SolarRiver TL
+* SolarRiver TL-D
+* SolarLake TL
+
+If you have a SolarLake TL-PM series inverter, check out this fork!
+->
 [semonet/solar](https://github.com/semonet/solar)
 
-Project is not actively maintained but feel free to open an issue or PR. If you're planning on modifying or extracting parts of the source code for your different needs I recommend to check out [v2](https://github.com/mhvis/solar/tree/v2) which has a much better code structure.
+## Features
+
+* View inverter data
+* Upload to PVOutput.org
+* Publish to MQTT broker
+
+The following features are not implemented but can be easily implemented upon request:
+
+* Filter inverter based on IP or serial number
+* Support for multiple PVOutput.org systems
 
 ## Requirements
 
-* Linux. Windows is not tested and the code likely needs modifications to work on Windows.
 * Python 3
+* Inverter needs to be in the same network
+
+## Installation
+
+##### Ubuntu/Debian/Raspberry Pi
+
+```commandline
+$ sudo apt install python3-pip
+$ pip3 install --user samil
+```
+
+After installing, invoke `samil --help` for usage info.
+If the `samil` command can't be found, first try to relogin.
+If that doesn't help you need to change the `PATH` variable
+with the following command and relogin to apply the change.
+
+```commandline
+$ echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+```
+
+##### Other
+
+```commandline
+$ pip install samil
+```
 
 ## Usage
 
-* Ensure both the system you're running this script on and the inverter are on
-the same network.
-* Obtain your PVOutput.org API key and system ID and put this in
-`samil_upload.ini`. If you have multiple inverters, see the section on
-[multiple inverters configuration](#multiple-inverters-configuration).
-* Run `samil_upload.py` (for Linux: `./samil_upload.py`).
+#### Monitor
 
-If you are using a Linux distro with SysV (`/etc/init.d`) like the Raspberry Pi
-you can use a service script to run it automatically on startup.
-[See here](https://github.com/mhvis/solar/tree/master/sysv). Alternatively you
-could also make a cron entry: run `crontab -e` and add
-`@reboot /path/to/samil_upload.py` to the cron file.
+The command `samil monitor` will search for an inverter in the network and print model and status info.
+It will connect to the first inverter it finds and print status data every 5 seconds.
+See `samil monitor --help` for additional options.
 
-If your system has multiple network interfaces, you can optionally force the
-script to use the correct one by specifying the system's IP address on the
-network in `samil_upload.ini` (should not be needed).
+#### MQTT
 
-## Multiple inverters configuration
+The command `samil mqtt` connects to one or more inverters and sends status
+messages to an MQTT broker continuously. These messages include inverter data
+like input power, output power, energy and temperature.
 
-*Skip if you have only 1 inverter*
+Example: `samil mqtt -h 192.168.1.2 -p 1883 --username user --password pw --inverters 2 --interval 10`.
+This command connects to the MQTT broker at address `192.168.1.2`, and
+authenticates with the given username `user` and password `pw`. It will
+connect to 2 inverters in the network and send an MQTT message continuously every 10 seconds.
 
-For using multiple inverters, you add a section for each inverter, in which you
-can specify the inverter serial number or IP address. The settings in the
-DEFAULT section apply to all inverters (useful for the API key). These can also
-be overridden in an inverter section. When a new inverter is found in the
-network, it is matched to all sections with equal and/or
-empty serial number and IP address. A section will only match one inverter,
-which is the first inverter found in the network that applies to the section
-filter. Thus if you have multiple sections without a specified serial number and
-IP address, the first inverter found is matched to all these sections.
+For full usage info, run `samil mqtt --help`.
 
-## Configuration examples
+To run this command at startup, [see below](#run-command-at-boot).
 
-### Single inverter
+#### PVOutput.org uploading
 
+See `samil pvoutput --help` for usage info.
+
+#### Fetch historical data
+
+*Todo*
+
+## Run command at boot
+
+Follow the instructions here to run the MQTT or PVOutput command automatically at startup.
+
+The instructions are based on [this post](https://raspberrypi.stackexchange.com/a/108723)
+and tested on Raspberry Pi OS Lite version May 2020.
+
+Create a new service:
 ```
-[DEFAULT]
-# Number of minutes between uploads
-Status interval = 5
-# Interface to bind to, optional
-Interface IP =
-
-API key = YourApiKey
-System ID = YourSystemId
+$ sudo systemctl edit --force --full samil.service
 ```
 
-### Two inverters, same PVOutput system, by serial number
-
-**Note: filtering by serial number is not yet implemented!** Use IP address
-instead.
-
-When multiple sections point to the same PVOutput system ID, the data of each
-section is combined before it is send to PVOutput. The energy data is
-accumulated and all other data (temperature, voltage) is averaged.
-
-When the serial number is ommited, this configuration will behave differently:
-the first inverter that is connected will match both systems (since both systems
-don't have serial number or IP address specified). Therefore only the data of
-that first inverter is combined (doubled) and sent to PVOutput.
-
+In the empty file that opened, insert the following statements, adjust as necessary, save and close.
 ```
-[DEFAULT]
-Status interval = 5
+[Unit]
+Description=Samil
+After=multi-user.target
 
-API key = AnkieIsLiev
-System ID = 44819
+[Service]
+# Adjust the command to your needs! Keep the path as is unless you installed to somewhere else.
+ExecStart=/home/pi/.local/bin/samil mqtt --host 192.168.1.2
 
-[System1]
-Serial number = DWB8080SDF
+# Adjust if you have a different user account
+User=pi
+Group=pi
 
-[System2]
-Serial number = HELLO
+# Automatically restart on crashes after 30 seconds
+Restart=on-failure
+RestartSec=30
+
+Environment="PYTHONUNBUFFERED=1"  # Leave as is
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### Two inverters, separate PVOutput system, by IP address
-
+Enable and start the service:
 ```
-[DEFAULT]
-Status interval = 5
-
-API key = NoortjeOok
-
-[System1]
-System ID = 12345
-IP address = 192.168.80.30
-
-[System2]
-System ID = 12346
-IP address = 192.168.80.31
+$ sudo systemctl enable --now samil.service
 ```
 
-It is also possible to add more inverters, have separate API keys or use
-different status intervals. If anything is unclear or you need more help setting
-up your systems, make an [issue](https://github.com/mhvis/solar/issues) or
-[contact me](mailto:mail@maartenvisscher.nl).
+Check if the service has successfully started:
+```
+$ sudo systemctl status samil.service
+```
 
-## Info
+#### Disabling
+
+If you want to stop the script, run:
+
+```
+$ sudo systemctl stop samil.service
+```
+
+If you want to disable the script from starting on boot:
+
+```
+$ sudo systemctl disable samil.service
+```
+## Background info
 
 The protocol used by these inverters is described
 [here](https://mhvis.github.io/solar/).
 
+The following units are used for the status values:
+
+* Voltage in volts
+* Current in amperes
+* Energy in kilowatt hours
+* Power in watts
+* Temperature in degrees Celcius
+* Operating time in hours
+
 This project was originally a fork of [zombiekipling/solriv](https://github.com/zombiekipling/solriv)
 but is now completely rewritten to implement new requirements.
+
+
+## As a library
+
+You can use this project as a library.
+For documentation you will need to read through the source code.
+To get started I recommend to read the `monitor` function in `samil.cli`.
+
+## Development info
+
+Development installation (usually in a virtual environment):
+```commandline
+pip install -e .
+pip install -r dev-requirements.txt
+```
+Lint code: `flake8`
+
+Run testcases: `python -m unittest`
+
+
+## License
+
+MIT

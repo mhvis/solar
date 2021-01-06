@@ -1,0 +1,2 @@
+flake8>=3.7.0
+flake8-docstrings
