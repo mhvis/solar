@@ -20,8 +20,12 @@ If you just need PVOutput.org uploading, you can also try the
 ## Features
 
 * View inverter data
-* Upload to PVOutput.org
+* Upload to PVOutput.org, data is aggregated for multiple inverters
 * Publish to MQTT broker
+
+The following features are not implemented but can be easily implemented upon request:
+
+* Filter inverter based on IP or serial number
 
 ## Requirements
 
@@ -51,8 +55,6 @@ $ echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
 ```commandline
 $ pip install samil
 ```
-
-
 
 ## Usage
 
@@ -170,7 +172,7 @@ To get started I recommend to read the `monitor` function in `samil.cli`.
 
 ## Development info
 
-Development installation:
+Development installation (usually in a virtual environment):
 ```commandline
 pip install -e .
 pip install -r dev-requirements.txt
