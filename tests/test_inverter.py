@@ -45,7 +45,7 @@ class InverterConnectionTestCase(TestCase):
     """
 
     def setUp(self) -> None:
-        """Creates socket pair for local (app) and remote ('real' inverter) side."""
+        """Creates socket pair for local (app) and remote (fake inverter) side."""
         local_sock, remote_sock = socketpair()  # We apparently can't use family=AF_INET on Linux
         local_sock.settimeout(1.0)
         remote_sock.settimeout(1.0)
@@ -63,7 +63,10 @@ class InverterConnectionTestCase(TestCase):
     def test_eof_on_send(self):
         """Tests if exception is raised on sending when connection is closed."""
         self.sock.close()  # Mimic inverter closed connection
-        with self.assertRaises(BrokenPipeError):
+        with self.assertRaises((BrokenPipeError, ConnectionAbortedError)):
+            self.inverter.send(b"\x00\x01\x02", b"")
+            # For Windows it only raises an error on the second try and it
+            # raises ConnectionAbortedError instead of BrokenPipeError
             self.inverter.send(b"\x00\x01\x02", b"")
 
     def test_eof_on_recv(self):
@@ -209,10 +212,10 @@ class KeepAliveInverterTestCase(TestCase):
 
     def test_keep_alive_cancelled(self):
         """Tests if keep-alive messages are cancelled when other messages are sent."""
-        sleep(0.008)  # Wait just before a keep-alive message will be sent
+        sleep(0.005)  # Wait before a keep-alive message will be sent
         self.inverter.send(b"\x01\x02\x03", b"")  # Send something arbitrary
         self.sock.recv(4096)  # Retrieve the sent message
-        sleep(0.004)  # Wait until the keep-alive was supposed to happen
+        sleep(0.008)  # Wait until just before the next keep-alive is supposed to happen
         # Check that no message was sent
         self.sock.setblocking(False)
         with self.assertRaises(BlockingIOError):

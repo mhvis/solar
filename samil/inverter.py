@@ -2,6 +2,7 @@
 
 import logging
 import socket
+import sys
 from collections import OrderedDict
 from threading import Event, Thread
 from time import sleep
@@ -213,7 +214,11 @@ class InverterFinder:
             self.listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             # Allow socket bind conflicts, this makes it possible to directly rebind to the same port
-            self.listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if sys.platform == 'win32':
+                # Windows behaves differently, needs this one instead of SO_REUSEADDR
+                self.listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:
+                self.listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         except OSError:
             self.listen_sock = None
             raise
@@ -243,14 +248,14 @@ class InverterFinder:
                 self.open()
                 return
             except OSError as e:
-                # Re-raise if the thrown error does not equal 'port already bound'
-                if e.errno != 98:
-                    raise e
+                # Re-raise if the thrown error does not equal 'port already bound' (98) or its Windows variant (10048)
+                if e.errno != 98 and e.errno != 10048:
+                    raise
                 logging.info("Listening port (1200) already in use, retrying")
                 # Check for maximum number of retries
                 tries += 1
                 if tries >= retries:
-                    raise e
+                    raise
                 sleep(period)
         # (This is unreachable)
 
