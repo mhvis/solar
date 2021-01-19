@@ -13,6 +13,8 @@ If you just need PVOutput.org uploading, you can also try the
 * SolarRiver TL-D
 * SolarLake TL
 
+The inverter needs to be equipped with a network connection and connected to the same network, the serial port is not supported.
+
 If you have a SolarLake TL-PM series inverter, check out this fork!
 ->
 [semonet/solar](https://github.com/semonet/solar)
@@ -28,12 +30,9 @@ The following features are not implemented but can be easily implemented upon re
 * Filter inverter based on IP or serial number
 * Support for multiple PVOutput.org systems
 
-## Requirements
-
-* Python 3
-* Inverter needs to be in the same network
-
 ## Installation
+
+The script uses Python 3.
 
 ##### Ubuntu/Debian/Raspberry Pi
 
