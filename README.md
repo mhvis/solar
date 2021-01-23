@@ -95,7 +95,7 @@ By default, the script uploads once and then stops. You can use cron to execute 
 ## Run command at boot
 
 Follow the instructions here to run the MQTT or PVOutput command automatically at startup.
-If you run PVOutput using cron, you don't need this.
+If you run PVOutput using cron, you don't need this!
 
 The instructions are based on [this post](https://raspberrypi.stackexchange.com/a/108723)
 and tested on Raspberry Pi OS Lite version May 2020.
