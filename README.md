@@ -81,7 +81,12 @@ To run this command at startup, [see below](#run-command-at-boot).
 
 #### PVOutput.org uploading
 
-See `samil pvoutput --help` for usage info.
+The command `samil pvoutput` gathers status data from 1 or more inverters and uploads it to your PVOutput.org system.
+If you have multiple inverters, the data of each inverter is aggregated before uploading.
+
+For full usage info, run `samil pvoutput --help`.
+
+By default, the script uploads once and then stops. You can use cron to execute the script every 5 minutes.
 
 #### Fetch historical data
 
@@ -90,6 +95,7 @@ See `samil pvoutput --help` for usage info.
 ## Run command at boot
 
 Follow the instructions here to run the MQTT or PVOutput command automatically at startup.
+If you run PVOutput using cron, you don't need this.
 
 The instructions are based on [this post](https://raspberrypi.stackexchange.com/a/108723)
 and tested on Raspberry Pi OS Lite version May 2020.
