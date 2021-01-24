@@ -1,14 +1,18 @@
 """Command-line interface."""
 import json
 import logging
+from base64 import b64encode
 from collections import namedtuple
 from decimal import Decimal
 from time import time, sleep
+from typing import Iterable
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 import click
 from paho.mqtt.client import Client as MQTTClient
 
-from samil.inverter import InverterNotFoundError, InverterFinder, KeepAliveInverter
+from samil.inverter import InverterNotFoundError, InverterFinder, KeepAliveInverter, Inverter
 from samil.inverterutil import connect_inverters
 from samil.pvoutput import add_status, aggregate_statuses
 
@@ -207,7 +211,7 @@ def mqtt(n: int, interval: float, host, port, client_id, tls: bool, username, pa
               default=False,
               help=("By default, AC voltage is uploaded, specify this "
                     "if you want to upload DC (panel) voltage instead."))
-@click.option('--interval', '-i',
+@click.option('-i', '--interval',
               type=int,
               help="Interval between status uploads in minutes, should be 5, 10 or 15. "
                    "If not specified, only does a single upload.")
@@ -263,6 +267,7 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
             sleep(interval * 60 - time() % (interval * 60))
             upload()
 
+
 #     # History
 #     parser_history = subparsers.add_parser('history', help='fetch historical generation data from inverter',
 #                                            description='Fetch historical generation data from inverter.')
@@ -283,3 +288,53 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
 #         parser.print_help()
 #         parser.exit()
 #     args.func(args)
+
+
+@cli.command()
+@click.argument('electricity-idx', type=int)
+@click.option('-n', help="Connect to n inverters.", type=int, default=1, show_default=True)
+@click.option('-a', '--address',
+              help="The address of your Domoticz installation including scheme and port.",
+              default='http://127.0.0.1:8080',
+              show_default=True)
+@click.option('-u', '--user', help="Username for accessing Domoticz.")
+@click.option('-p', '--password', help="Password for accessing Domoticz.")
+@click.option('-i', '--interval',
+              help="Interval between each status update in seconds.",
+              type=int, default=10, show_default=True)
+@click.option('--interface', default='', help="IP address of local network interface to bind to.")
+def domoticz(electricity_idx: int, n: int, address: str, user: str, password: str, interval: int, interface: str):
+    """Push inverter data to Domoticz.
+
+    """
+    if user and password:
+        authorization = b64encode('{}:{}'.format(user, password).encode()).decode()
+    else:
+        authorization = None
+
+    with connect_inverters(interface, n) as inverters:  # type: Iterable[Inverter]
+
+        start_time = time()
+
+        while True:
+            statuses = [inv.status() for inv in inverters]
+            power = int(sum(s['output_power'] for s in statuses))
+            energy = int(sum(s['energy_total'] for s in statuses) * 1000)
+
+            params = urlencode({
+                'type': 'command',
+                'param': 'udevice',
+                'idx': electricity_idx,
+                'nvalue': 0,
+                'svalue': '{};{}'.format(power, energy)
+            })
+            req = Request('{}/json.htm?{}'.format(address, params))
+            if authorization:
+                req.add_header('Authorization', 'Basic {}'.format(authorization))
+            logging.debug("Domoticz request: %s", req)
+            resp = urlopen(req)
+            logging.debug("Domoticz response: %s", resp)
+
+            # This doesn't suffer from drifting, however it will skip messages when
+            #  a message takes longer than the interval.
+            sleep(interval - ((time() - start_time) % interval))
