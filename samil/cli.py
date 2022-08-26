@@ -6,11 +6,15 @@ from decimal import Decimal
 from time import time, sleep
 
 import click
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 from paho.mqtt.client import Client as MQTTClient
 
 from samil.inverter import InverterNotFoundError, InverterFinder, KeepAliveInverter
 from samil.inverterutil import connect_inverters
 from samil.pvoutput import add_status, aggregate_statuses
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -229,25 +233,26 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
 
     If you don't want to use cron, specify the --interval option to
     make the application upload status data on the specified interval.
-    With this mode the application will stay connected to the inverters
-    in between uploads, this is less recommended.
+    This mode is not recommended. The application will stay connected to the
+    inverters in between uploads and will crash when the connection is lost,
+    thus you need a restart mechanism such as systemd.
     """
     # Print info messages (at least)
     if logging.root.level > logging.INFO:
         logging.basicConfig(level=logging.INFO)
 
-    logging.info("Connecting to inverter(s)")
+    logger.info("Connecting to inverter(s)")
     with connect_inverters(interface, n) as inverters:
         def upload():
             """Uploads status to PVOutput."""
             # Todo: this should be asynchronous so that multiple inverters can be requested at once
             status_data = aggregate_statuses([inv.status() for inv in inverters], dc_voltage=dc_voltage)
             if not status_data:
-                logging.info("Not uploading, no inverter has operating mode normal")
+                logger.info("Not uploading, no inverter has operating mode normal")
                 return
 
             # Upload
-            logging.info("Uploading status data: %s", status_data)
+            logger.info("Uploading status data: %s", status_data)
             if not dry_run:
                 add_status(system_id, api_key, **status_data)
 
@@ -257,11 +262,12 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
             return
 
         # Interval given, run periodically
-        logging.info("Waiting for next interval boundary to do the first upload")
+        logger.info("Waiting for next interval boundary to do the first upload")
         while True:
             # Sleep until next boundary
             sleep(interval * 60 - time() % (interval * 60))
             upload()
+
 
 #     # History
 #     parser_history = subparsers.add_parser('history', help='fetch historical generation data from inverter',
@@ -283,3 +289,63 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
 #         parser.print_help()
 #         parser.exit()
 #     args.func(args)
+
+
+@cli.command()
+@click.argument('bucket')
+@click.option('-c', help="InfluxDB client configuration file.")
+@click.option('--interval', default=10.0, help="Interval between status writes in seconds.", show_default=True)
+@click.option('--interface', default='', help="IP address of local network interface to bind to.")
+@click.option('--gzip', is_flag=True, default=False, help="Use GZip compression for the InfluxDB writes.")
+@click.option('--measurement', default='samil', help="InfluxDB measurement name.", show_default=True)
+def influx(bucket: str, c: str, interval: float, interface: str, gzip: bool, measurement: str):
+    """Writes system status data to an InfluxDB database.
+
+    The InfluxDB instance can be specified using environment variables or a
+    configuration file. See
+    https://github.com/influxdata/influxdb-client-python#client-configuration.
+    Use the option -c to point to a configuration file. Specify the bucket to
+    write to in the BUCKET argument. Each measurement will have the name
+    'samil'.
+
+    Do you have multiple inverters? This command only supports 1 inverter
+    because I am lazy and only need 1, but if you need more, create an issue on
+    the GitHub project page. It is trivial to add.
+
+    This command has no built-in restart mechanism and will crash for instance
+    when the Influx or inverter connection is lost. (This is again because I am
+    lazy, use systemd or Docker to restart on failure.)
+
+    Status is not written when the inverter is powered off at night.
+    """
+    # Print info messages (at least)
+    if logging.root.level > logging.INFO:
+        logging.basicConfig(level=logging.INFO)
+
+    if c:
+        client = InfluxDBClient.from_config_file(c, enable_gzip=gzip)
+    else:
+        client = InfluxDBClient.from_env_properties(enable_gzip=gzip)
+    write_client = client.write_api(write_options=SYNCHRONOUS)
+
+    logger.info("Connecting to inverter")
+    with connect_inverters(interface, 1) as inverters:
+        inv = inverters[0]  # type: KeepAliveInverter
+
+        logger.info("Startup complete, will write every %s seconds to bucket %s with measurement name %s",
+                    interval, bucket, measurement)
+        next_run = time() + interval
+        while True:
+            s = inv.status()
+            if s['operation_mode'] == 'PV power off':
+                # Do not write at night
+                continue
+
+            p = Point(measurement)
+            for k, v in s.items():
+                # TODO: maybe filter out zeros
+                p.field(k, v)
+            logger.debug("Writing point: %s", p)
+            write_client.write(bucket=bucket, record=p)
+            sleep(next_run - time())
+            next_run += interval

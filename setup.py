@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="samil",
-    version="2.1.0",
+    version="2.2.0",
     author="Maarten Visscher",
     author_email="mail@maartenvisscher.nl",
     description="Samil Power inverter tool",
@@ -32,5 +32,6 @@ setup(
     install_requires=[
         "paho-mqtt>=1.5.0",
         "click>=7.1.2",
+        "influxdb-client>=1.32.0",
     ]
 )

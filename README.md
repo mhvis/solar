@@ -30,13 +30,35 @@ The following features are not implemented but can be easily implemented upon re
 * Filter inverter based on IP or serial number
 * Support for multiple PVOutput.org systems
 
-## Installation
+## Getting started
 
-The script uses Python 3.
+### Docker
 
-##### Ubuntu/Debian/Raspberry Pi
+You can run any of the available commands with Docker.
+Make sure to use host networking because the app relies on UDP broadcasts.
+The image is currently not built for ARM platforms like Raspberry Pi,
+so in that case you need to build it yourself.
 
-```commandline
+```
+docker run --network host mhvis/samil samil monitor
+```
+
+Here is a sample `compose.yaml`:
+
+```yaml
+name: "samil"
+
+services:
+  samil:
+    image: mhvis/samil
+    command: samil monitor  # Adapt as desired
+    network_mode: host
+    restart: unless-stopped
+```
+
+### Ubuntu/Debian/Raspberry Pi
+
+```
 $ sudo apt install python3-pip
 $ pip3 install --user samil
 ```
@@ -46,13 +68,13 @@ If the `samil` command can't be found, first try to relogin.
 If that doesn't help you need to change the `PATH` variable
 with the following command and relogin to apply the change.
 
-```commandline
+```
 $ echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
 ```
 
-##### Other
+### Other
 
-```commandline
+```
 $ pip install samil
 ```
 

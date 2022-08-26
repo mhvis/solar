@@ -10,6 +10,8 @@ from typing import Tuple, Dict, BinaryIO, Any, Optional
 
 from samil.statustypes import status_types
 
+logger = logging.getLogger(__name__)
+
 
 class Inverter:
     """Provides methods for communicating with a connected inverter.
@@ -110,8 +112,8 @@ class Inverter:
 
         # Payload should be twice the size of the status format
         if 2 * len(self._status_format) != len(payload):
-            logging.warning("Size of status payload and format differs, format %s, payload %s",
-                            self._status_format.hex(), payload.hex())
+            logger.warning("Size of status payload and format differs, format %s, payload %s",
+                           self._status_format.hex(), payload.hex())
 
         # Retrieve all status data type values
         status_values = OrderedDict()
@@ -149,7 +151,7 @@ class Inverter:
         self.send(identifier, payload)
         response_id, response_payload = self.receive()
         while not response_id.startswith(expected_response_id):
-            logging.warning("Got unexpected inverter response {} for request {}".format(
+            logger.warning("Got unexpected inverter response {} for request {}".format(
                 response_id.hex(), identifier.hex()))
             response_id, response_payload = self.receive()
         return response_id, response_payload
@@ -163,7 +165,7 @@ class Inverter:
                 'write to closed file'.
         """
         message = construct_message(identifier, payload)
-        logging.debug('Sending %s', message.hex())
+        logger.debug('Sending %s', message.hex())
         self.sock_file.write(message)
         self.sock_file.flush()
 
@@ -251,7 +253,7 @@ class InverterFinder:
                 # Re-raise if the thrown error does not equal 'port already bound' (98) or its Windows variant (10048)
                 if e.errno != 98 and e.errno != 10048:
                     raise
-                logging.info("Listening port (1200) already in use, retrying")
+                logger.info("Listening port (1200) already in use, retrying")
                 # Check for maximum number of retries
                 tries += 1
                 if tries >= retries:
@@ -288,11 +290,11 @@ class InverterFinder:
             bc.bind((self.interface_ip, 0))
 
             for i in range(advertisements):
-                logging.debug('Sending server broadcast message')
+                logger.debug('Sending server broadcast message')
                 bc.sendto(message, ('<broadcast>', 1300))
                 try:
                     sock, addr = self.listen_sock.accept()
-                    logging.info('Connected with inverter on address %s', addr)
+                    logger.info('Connected with inverter on address %s', addr)
                     return sock, addr
                 except socket.timeout:
                     pass
