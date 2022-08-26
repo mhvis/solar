@@ -7,3 +7,5 @@ __pycache__/
 /build/
 /dist/
 /samil.egg-info/
+
+/research/

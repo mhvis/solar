@@ -291,7 +291,7 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
 
 
 @cli.command()
-@click.argument('electricity-idx', type=int)
+@click.argument('electric-idx', type=int)
 @click.option('-n', help="Connect to n inverters.", type=int, default=1, show_default=True)
 @click.option('-a', '--address',
               help="The address of your Domoticz installation including scheme and port.",
@@ -303,9 +303,12 @@ def pvoutput(system_id, api_key, interface, n: int, dc_voltage: bool, interval: 
               help="Interval between each status update in seconds.",
               type=int, default=10, show_default=True)
 @click.option('--interface', default='', help="IP address of local network interface to bind to.")
-def domoticz(electricity_idx: int, n: int, address: str, user: str, password: str, interval: int, interface: str):
+def domoticz(electric_idx: int, n: int, address: str, user: str, password: str, interval: int, interface: str):
     """Push inverter data to Domoticz.
 
+    Domoticz one-time setup: add new hardware with type dummy and create a
+    virtual sensor with type electric. Put the sensor device index as found on
+    the Devices tab in the ELECTRIC_IDX argument.
     """
     if user and password:
         authorization = b64encode('{}:{}'.format(user, password).encode()).decode()
@@ -324,7 +327,7 @@ def domoticz(electricity_idx: int, n: int, address: str, user: str, password: st
             params = urlencode({
                 'type': 'command',
                 'param': 'udevice',
-                'idx': electricity_idx,
+                'idx': electric_idx,
                 'nvalue': 0,
                 'svalue': '{};{}'.format(power, energy)
             })
