@@ -176,6 +176,95 @@ You can use this project as a library.
 For documentation you will need to read through the source code.
 To get started I recommend to read the `monitor` function in `samil.cli`.
 
+## CLI reference
+
+The following commands and options are available:
+
+```
+$ samil monitor --help
+Usage: samil monitor [OPTIONS]
+
+  Print model and status info for an inverter.
+
+  When you have multiple inverters, run this command multiple times to
+  connect to all inverters.
+
+Options:
+  --interval FLOAT  Status interval.  [default: 5.0]
+  --interface TEXT  IP address of local network interface to bind to.
+  --help            Show this message and exit.
+```
+
+```
+$ samil mqtt --help
+Usage: samil mqtt [OPTIONS]
+
+  Publish inverter data to an MQTT broker.
+
+  The default topic format is inverter/<serial number>/status, e.g.
+  inverter/DW413B8080/status. The message value is a JSON object with all
+  status data from the inverter. Example message value:
+
+      {"operation_mode":"Normal","total_operation_time":45,
+      "pv1_input_power":2822.0,"pv2_input_power":0.0,"pv1_voltage":586.5,
+      "pv2_voltage":6.7,"pv1_current":4.8,"pv2_current":0.1,
+      "output_power":2589.0,"energy_today":21.2,"energy_total":77.0,
+      "grid_voltage":242.6,"grid_current":3.6,"grid_frequency":50.01,
+      "internal_temperature":35.0}
+
+Options:
+  -n, --inverters INTEGER  Number of inverters.  [default: 1]
+  -i, --interval FLOAT     Interval between status messages in seconds.
+                           [default: 10.0]
+
+  -h, --host TEXT          MQTT broker hostname or IP.  [default: localhost]
+  -p, --port INTEGER       MQTT broker port.  [default: 1883]
+  --client-id TEXT         MQTT client ID. If not provided, one will be
+                           randomly generated.
+
+  --tls                    Enable MQTT SSL/TLS support.
+  --username TEXT          MQTT username.
+  --password TEXT          MQTT password.
+  --topic-prefix TEXT      MQTT topic prefix.  [default: inverter]
+  --interface TEXT         IP address of local network interface to bind to.
+  --help                   Show this message and exit.
+```
+
+```
+$ samil pvoutput --help
+Usage: samil pvoutput [OPTIONS] SYSTEM_ID API_KEY
+
+  Upload inverter status to a PVOutput.org system.
+
+  Specify the PVOutput system using the SYSTEM_ID and API_KEY arguments. The
+  command will connect to the inverter, upload the current status data and
+  exit. Use something like cron to upload status data every 5 minutes.
+
+  If you have multiple inverters, specify -n with the number of inverters.
+  Data of all inverters will be aggregated before uploading to PVOutput,
+  energy is summed, voltage and temperature are averaged. For temperature,
+  the internal temperature is used, not the heatsink temperature. If the
+  inverter uses three phases, the voltage of each phase is averaged.
+
+  If you don't want to use cron, specify the --interval option to make the
+  application upload status data on the specified interval. With this mode
+  the application will stay connected to the inverters in between uploads,
+  this is less recommended.
+
+Options:
+  -n INTEGER              Connect to n inverters.  [default: 1]
+  --dc-voltage            By default, AC voltage is uploaded, specify this if
+                          you want to upload DC (panel) voltage instead.
+
+  -i, --interval INTEGER  Interval between status uploads in minutes, should
+                          be 5, 10 or 15. If not specified, only does a single
+                          upload.
+
+  --dry-run               Do not upload data to PVOutput.org.
+  --interface TEXT        IP address of local network interface to bind to.
+  --help                  Show this message and exit.
+```
+
 ## Development info
 
 Development installation (usually in a virtual environment):
