@@ -40,7 +40,7 @@ The image is currently not built for ARM platforms like Raspberry Pi,
 so for these platforms you need to build it yourself or install via pip.
 
 ```
-docker run --network host mhvis/samil samil monitor
+docker run --network host mhvis/samil monitor
 ```
 
 Here is a sample `compose.yaml`:
@@ -51,7 +51,7 @@ name: "samil"
 services:
   samil:
     image: mhvis/samil
-    command: samil monitor  # Adapt as desired
+    command: monitor  # Adapt as desired
     network_mode: host
     restart: unless-stopped
 ```
