@@ -6,10 +6,11 @@ from decimal import Decimal
 from time import time, sleep
 
 import click
-from influxdb_client import InfluxDBClient, Point
+from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 from paho.mqtt.client import Client as MQTTClient
 
+from samil.influx import status_to_point
 from samil.inverter import InverterNotFoundError, InverterFinder, KeepAliveInverter
 from samil.inverterutil import connect_inverters
 from samil.pvoutput import add_status, aggregate_statuses
@@ -336,16 +337,9 @@ def influx(bucket: str, c: str, interval: float, interface: str, gzip: bool, mea
                     interval, bucket, measurement)
         start = time()
         while True:
-            s = inv.status()
-            if s['operation_mode'] == 'PV power off':
-                # Do not write at night
-                continue
-
-            p = Point(measurement)
-            for k, v in s.items():
-                # TODO: maybe filter out zeros
-                p.field(k, v)
+            p = status_to_point(measurement, inv.status())
             logger.debug("Writing point: %s", p)
-            write_client.write(bucket=bucket, record=p)
+            if p:
+                write_client.write(bucket=bucket, record=p)
             # Sleep until the next interval boundary
             sleep(interval - (time() - start) % interval)
