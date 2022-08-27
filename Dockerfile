@@ -1,10 +1,12 @@
 FROM python:3.10
 
-# I add Tini for better init management.
-# See https://github.com/krallin/tini
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
+# I add Tini for better init management. See https://github.com/krallin/tini.
+#
+# The dpkgArch is necessary to pick the correct binary for the current platform.
+RUN dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" \
+    && tiniVersion=v0.19.0 \
+    && wget -O /tini https://github.com/krallin/tini/releases/download/${tiniVersion}/tini-${dpkgArch} \
+    && chmod +x /tini
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /usr/src/app

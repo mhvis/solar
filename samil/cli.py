@@ -307,15 +307,15 @@ def influx(bucket: str, c: str, interval: float, interface: str, gzip: bool, mea
     https://github.com/influxdata/influxdb-client-python#client-configuration.
     Use the option -c to point to a configuration file. Specify the bucket to
     write to in the BUCKET argument. Each measurement will have the name
-    'samil'.
+    'samil' by default.
 
     Do you have multiple inverters? This command only supports 1 inverter
     because I am lazy and only need 1, but if you need more, create an issue on
     the GitHub project page. It is trivial to add.
 
     This command has no built-in restart mechanism and will crash for instance
-    when the Influx or inverter connection is lost. (This is again because I am
-    lazy, use systemd or Docker to restart on failure.)
+    when the Influx or inverter connection is lost. This is again because I am
+    lazy, use systemd or Docker to restart on failure.
 
     Status is not written when the inverter is powered off at night.
     """
