@@ -37,7 +37,7 @@ The following features are not implemented but can be easily implemented upon re
 You can run any of the available commands with Docker.
 Make sure to use host networking because the app relies on UDP broadcasts.
 The image is currently not built for ARM platforms like Raspberry Pi,
-so in that case you need to build it yourself.
+so for these platforms you need to build it yourself or install via pip.
 
 ```
 docker run --network host mhvis/samil samil monitor

@@ -334,7 +334,7 @@ def influx(bucket: str, c: str, interval: float, interface: str, gzip: bool, mea
 
         logger.info("Startup complete, will write every %s seconds to bucket %s with measurement name %s",
                     interval, bucket, measurement)
-        next_run = time() + interval
+        start = time()
         while True:
             s = inv.status()
             if s['operation_mode'] == 'PV power off':
@@ -347,5 +347,5 @@ def influx(bucket: str, c: str, interval: float, interface: str, gzip: bool, mea
                 p.field(k, v)
             logger.debug("Writing point: %s", p)
             write_client.write(bucket=bucket, record=p)
-            sleep(next_run - time())
-            next_run += interval
+            # Sleep until the next interval boundary
+            sleep(interval - (time() - start) % interval)
