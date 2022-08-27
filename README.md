@@ -24,6 +24,7 @@ If you have a SolarLake TL-PM series inverter, check out this fork!
 * View inverter data
 * Upload to PVOutput.org
 * Publish to MQTT broker
+* Write to an InfluxDB database
 
 The following features are not implemented but can be easily implemented upon request:
 
@@ -109,6 +110,10 @@ If you have multiple inverters, the data of each inverter is aggregated before u
 For full usage info, run `samil pvoutput --help`.
 
 By default, the script uploads once and then stops. You can use cron to execute the script every 5 minutes.
+
+#### InfluxDB
+
+See CLI reference below.
 
 #### Fetch historical data
 
@@ -285,6 +290,38 @@ Options:
   --dry-run               Do not upload data to PVOutput.org.
   --interface TEXT        IP address of local network interface to bind to.
   --help                  Show this message and exit.
+```
+
+```
+$ samil influx --help
+Usage: samil influx [OPTIONS] BUCKET
+
+  Writes system status data to an InfluxDB database.
+
+  The InfluxDB instance can be specified using environment variables or a
+  configuration file. See https://github.com/influxdata/influxdb-client-
+  python#client-configuration. Use the option -c to point to a configuration
+  file. Specify the bucket to write to in the BUCKET argument. Each
+  measurement will have the name 'samil'.
+
+  Do you have multiple inverters? This command only supports 1 inverter
+  because I am lazy and only need 1, but if you need more, create an issue on
+  the GitHub project page. It is trivial to add.
+
+  This command has no built-in restart mechanism and will crash for instance
+  when the Influx or inverter connection is lost. (This is again because I am
+  lazy, use systemd or Docker to restart on failure.)
+
+  Status is not written when the inverter is powered off at night.
+
+Options:
+  -c TEXT             InfluxDB client configuration file.
+  --interval FLOAT    Interval between status writes in seconds.  [default:
+                      10.0]
+  --interface TEXT    IP address of local network interface to bind to.
+  --gzip              Use GZip compression for the InfluxDB writes.
+  --measurement TEXT  InfluxDB measurement name.  [default: samil]
+  --help              Show this message and exit.
 ```
 
 ## Development info
