@@ -295,6 +295,8 @@ class InverterFinder:
                 try:
                     sock, addr = self.listen_sock.accept()
                     logger.info('Connected with inverter on address %s', addr)
+                    # Wait before sending identification request
+                    sleep(1.0)
                     return sock, addr
                 except socket.timeout:
                     pass
