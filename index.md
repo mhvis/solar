@@ -238,6 +238,59 @@ Example of the payloads for a full day, in 3 packets:
 When all data is transferred, the inverter sends a closing packet to notify this.
 This packet has identifier `06 81 00` and empty payload.
 
+### Communications module
+
+Request identifier: `04 00 02`, checksum: `01 05`, empty payload.
+
+Response identifier: `04 80 00`.  Payload is 161 bytes
+
+* 0000 installed comms module, 01 = GPRS, 02 = WIFI, 03 = 'No Module' (1 byte)
+* 0001 WIFI SSID (35 char)
+* 0024 WIFI Password (60 char) [1]
+* 0060 GPRS PIN (4 char)
+* 0064 GPRS Centre Number (30 char)
+* 0082 GPRS Customer Number (30 char)
+* 00a0 Module in use (1 byte). `00` not in use,  `80` (128) in use. [2] 
+
+[1] Password is sent in the clear!! but hidden in Samil Power Browser.
+
+[2] Parameters cannot be updated from the app if this value is not zero - presumably to prevent locking
+you out of the inverter.
+
+```
+0000  02 6d 79 73 73 69 64 00 00 00 00 00 00 00 00 00  .myssid.........
+0010  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0020  00 00 00 00 70 61 73 73 77 6f 72 64 00 00 00 00  ....password....
+0030  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0040  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0050  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0060  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0070  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0080  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+0090  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00A0  80
+```
+
+#### Set WIFI or GPRS Parameters
+
+Samil Power Browser protects these requests to change parameters by the owner 'write' password which
+seems to be hardcoded to 'samilpower88'.
+
+WIFI request: `05 00 00`, payload is the WIFI structure from above
+* 0000 WIFI SSID (35 char)
+* 0023 WIFI Password (60 char)
+
+GPRS request: `05 01 00`, payload is the GPRS structure from above
+* 0000 PIN (4 char)
+* 0004 Centre (30 char)
+* 0022 Customer (20 char)
+
+Response identifier is the same as the request identifier with a 1 byte payload, either `06` = success, anything else
+is considered a failure by Samil Power Browser.
+* WIFI `05 00 00 00 01 06 01 0b`
+* GPRS `05 01 00 00 01 06 01 0c`
+
+Note the inverter will reboot after a successful change which will reset any current connection.
 
 ### Unknown message 2
 
@@ -245,12 +298,6 @@ Request identifier: `01 09 02`, checksum: `01 0b`, empty payload.
 
 Response identifier: `01 89 00`, payload was for me `55 0c 00 00`.
 
-### Unknown message 3
-
-Request identifier: `04 00 02`, checksum: `01 05`, empty payload.
-
-Response identifier: `04 80 00`. The payload was for me a
-byte with value 2 followed by a long sequence of bytes with value 0 (160 bytes).
 
 ## Packet data samples
 
