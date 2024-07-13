@@ -9,9 +9,9 @@ If you just need PVOutput.org uploading, you can also try the
 
 ## Supported inverter series
 
-* SolarRiver TL
 * SolarRiver TL-D
 * SolarLake TL
+* (Maybe also SolarRiver TL but probably not)
 
 The inverter needs to be equipped with a network connection and connected to the same network, the serial port is not supported.
 
@@ -55,6 +55,8 @@ services:
     command: monitor  # Adapt as desired
     network_mode: host
     restart: unless-stopped
+    environment:
+      TZ: Europe/Amsterdam  # Needed when using PVOutput
 ```
 
 ### Ubuntu/Debian/Raspberry Pi
