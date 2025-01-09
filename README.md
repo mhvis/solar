@@ -328,15 +328,12 @@ Options:
 
 ## Development info
 
-Development installation (usually in a virtual environment):
-```commandline
-pip install -e .
-pip install -r dev-requirements.txt
-```
-Lint code: `flake8`
+These commands are usually run in a virtual environment.
 
-Run testcases: `python -m unittest`
-
+* Development installation: `pip install --editable .`
+* Development requirements: `pip install -r dev-requirements.txt`
+* Lint code: `flake8`
+* Run testcases: `python -m unittest`
 
 ## License
 

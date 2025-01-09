@@ -6,7 +6,7 @@ import sys
 from collections import OrderedDict
 from threading import Event, Thread
 from time import sleep
-from typing import Tuple, Dict, BinaryIO, Any, Optional
+from typing import Tuple, Dict, BinaryIO, Any
 
 from samil.statustypes import status_types
 
@@ -183,7 +183,7 @@ class InverterFinder:
     You need to call open() and close() or use the class in a with statement.
     """
 
-    listen_sock = None  # type: Optional[socket.socket]
+    listen_sock = None
 
     def __init__(self, interface_ip=''):
         """Create instance.
