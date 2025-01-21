@@ -1,4 +1,4 @@
-# Samil Power inverter tool
+# ☀️ Samil Power inverter tool
 
 [![PyPI](https://img.shields.io/pypi/v/samil)](https://pypi.org/project/samil/)
 
@@ -16,7 +16,7 @@ If you just need PVOutput.org uploading, you can also try the
 The inverter needs to be equipped with a network connection and connected to the same network, the serial port is not supported.
 
 If you have a SolarLake TL-PM series inverter, check out this fork!
-->
+→
 [semonet/solar](https://github.com/semonet/solar)
 
 ## Features
@@ -33,6 +33,25 @@ The following features are not implemented but can be easily implemented upon re
 
 ## Getting started
 
+### Ubuntu/Debian/Raspberry Pi
+
+You can install the package with pip:
+
+```shell
+sudo apt install python3-pip
+pip3 install --user samil
+```
+
+After installing, invoke `samil --help` for usage info.
+If the `samil` command can't be found, first try to relogin.
+If that doesn't help you need to change the `PATH` variable
+with the following command and relogin to apply the change.
+
+```shell
+echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+```
+
+
 ### Docker
 
 You can run any of the available commands with Docker.
@@ -40,7 +59,7 @@ Make sure to use host networking because the app relies on UDP broadcasts.
 The image is currently not built for ARM platforms like Raspberry Pi,
 so for these platforms you need to build it yourself or install via pip.
 
-```
+```shell
 docker run --network host mhvis/samil monitor
 ```
 
@@ -59,37 +78,23 @@ services:
       TZ: Europe/Amsterdam  # Needed when using PVOutput
 ```
 
-### Ubuntu/Debian/Raspberry Pi
-
-```
-$ sudo apt install python3-pip
-$ pip3 install --user samil
-```
-
-After installing, invoke `samil --help` for usage info.
-If the `samil` command can't be found, first try to relogin.
-If that doesn't help you need to change the `PATH` variable
-with the following command and relogin to apply the change.
-
-```
-$ echo 'PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-```
-
 ### Other
 
-```
-$ pip install samil
+```shell
+pip install samil
 ```
 
 ## Usage
 
-#### Monitor
+
+### Monitor
 
 The command `samil monitor` will search for an inverter in the network and print model and status info.
 It will connect to the first inverter it finds and print status data every 5 seconds.
 See `samil monitor --help` for additional options.
 
-#### MQTT
+
+### MQTT
 
 The command `samil mqtt` connects to one or more inverters and sends status
 messages to an MQTT broker continuously. These messages include inverter data
@@ -104,7 +109,8 @@ For full usage info, run `samil mqtt --help`.
 
 To run this command at startup, [see below](#run-command-at-boot).
 
-#### PVOutput.org uploading
+
+### PVOutput.org uploading
 
 The command `samil pvoutput` gathers status data from 1 or more inverters and uploads it to your PVOutput.org system.
 If you have multiple inverters, the data of each inverter is aggregated before uploading.
@@ -112,19 +118,22 @@ If you have multiple inverters, the data of each inverter is aggregated before u
 For full usage info, run `samil pvoutput --help`.
 
 By default, the script uploads once and then stops. You can use cron to execute the script every 5 minutes.
+Edit the crontab with `crontab -e` and add a line like this:
 
-#### InfluxDB
+```
+*/5 * * * * /path/to/samil pvoutput SYSTEM_ID API_KEY
+```
+
+
+### InfluxDB
 
 See CLI reference below.
 
-#### Fetch historical data
-
-*Todo*
 
 ## Run command at boot
 
-Follow the instructions here to run the MQTT or PVOutput command automatically at startup.
-If you run PVOutput using cron, you don't need this!
+Follow the instructions here to run the MQTT command automatically at startup.
+For PVOutput, cron is the recommended way to run the command every 5 minutes.
 
 The instructions are based on [this post](https://raspberrypi.stackexchange.com/a/108723)
 and tested on Raspberry Pi OS Lite version May 2020.
@@ -152,7 +161,7 @@ Group=pi
 Restart=on-failure
 RestartSec=30
 
-Environment="PYTHONUNBUFFERED=1"  # Leave as is
+Environment="PYTHONUNBUFFERED=1"
 
 [Install]
 WantedBy=multi-user.target
@@ -168,7 +177,7 @@ Check if the service has successfully started:
 $ sudo systemctl status samil.service
 ```
 
-#### Disabling
+### Disabling
 
 If you want to stop the script, run:
 
