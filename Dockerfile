@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.14.0
 
 # I add Tini for better init management. See https://github.com/krallin/tini.
 #
@@ -10,9 +10,6 @@ RUN dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" \
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /usr/src/app
-
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
 
 # The .dockerignore file only includes necessary files/folders
 COPY . .
